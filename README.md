@@ -5,31 +5,49 @@ A tiny Windows tray app that does two things well:
 - **Video wallpaper**: any video, GIF or WebP plays behind your desktop icons, starts the moment you sign in, and pauses when you're not looking at the desktop.
 - **Colour filters for the whole screen**: sepia, amber, greyscale, blue-light and more, each with a strength slider, a sign-in default and a daily schedule. Windows' own colour filters only offer a few, have no intensity setting, and are buried in Settings.
 
-One small native exe (~450 KB). No admin rights, no background services, no network access, no telemetry.
+One small native exe (~450 KB). No admin rights, no background services, no network access, no telemetry. Made by Abinaash ([MilkmanAbi](https://github.com/MilkmanAbi)).
 
 <p align="center"><img src="docs/colour-filter.png" width="380" alt="Backdrop's colour filter window"></p>
 
 ## Install
 
-Open **PowerShell** (Start menu, type `powershell`, press Enter) and paste:
+1. Download **`Backdrop-Setup-1.1.0.exe`** from [Releases](https://github.com/MilkmanAbi/Backdrop/releases/latest).
+2. Run it. Windows will probably show a blue **"Windows protected your PC"** screen. Click **More info**, then **Run anyway**. That screen appears for any app that isn't code-signed, which costs money every year; it doesn't mean anything was found.
+3. Backdrop appears next to the clock, asks you to pick a video or GIF, and from then on starts by itself every time you sign in.
 
-```powershell
-irm https://raw.githubusercontent.com/MilkmanAbi/Backdrop/main/install.ps1 | iex
-```
+No admin rights needed. It installs just for you, to `%LOCALAPPDATA%\Programs\Backdrop`. Requires 64-bit Windows 10 (1809) or Windows 11.
 
-That's it. Backdrop appears next to the clock and starts by itself every time you sign in.
+### If Windows says "Smart App Control blocked an app"
 
-- **Admin isn't needed.** A normal PowerShell window is fine, and so is "Run as administrator". Backdrop always installs and runs as *you*.
-- **No scary warning.** If you download the installer in a browser, Windows shows "Windows protected your PC", because Backdrop isn't code-signed (that costs money every year). The command above doesn't hit that screen. Here's what it does, all of it visible in [`install.ps1`](install.ps1):
-  1. Fetches the latest installer from this repo's [Releases](https://github.com/MilkmanAbi/Backdrop/releases).
-  2. Checks its SHA-256 against the checksum GitHub recorded when it was uploaded, and refuses to run anything that doesn't match.
-  3. Installs it silently to `%LOCALAPPDATA%\Programs\Backdrop`.
-  4. Starts it.
+Most PCs never show this, because Smart App Control is usually already off. If yours blocks Backdrop:
 
-**Prefer clicking?** Download `Backdrop-Setup-x.y.z.exe` from [Releases](https://github.com/MilkmanAbi/Backdrop/releases) and run it. On the blue "Windows protected your PC" screen, click **More info**, then **Run anyway**.
+1. Open Start, type **security** and open **Windows Security**.
 
-Requires 64-bit Windows 10 (1809) or Windows 11.
+   <img src="assets/1-search-windows-security.png" width="520" alt="Searching for Windows Security in the Start menu">
 
+2. Go to **App & browser control**, then **Smart App Control settings**.
+
+   <img src="assets/2-app-and-browser-control.png" width="620" alt="App & browser control page">
+
+3. Choose **Off**, then run the installer again.
+
+   <img src="assets/3-smart-app-control-off.png" width="620" alt="Smart App Control set to Off">
+
+Turning Smart App Control off means Windows stops blocking *all* unknown apps, not just this one. On some Windows versions you also can't turn it back on without resetting Windows. Only do it if you're happy with that. Windows Defender antivirus keeps protecting you either way.
+
+## Made by
+
+**Abinaash ([MilkmanAbi](https://github.com/MilkmanAbi))**. I built Backdrop because Windows' colour filters were too limited and hard to toggle, and I wanted my favourite video as my wallpaper without a heavy app running in the background. Sharing it with my friends, and now you.
+
+### Is it safe?
+
+Yes. And you don't have to take my word for it:
+
+- **All the code is right here**: about 2,600 lines of C++ you can read, and build yourself with `build.bat`.
+- **It never touches the internet.** No accounts, no telemetry, no update pings.
+- **No admin rights, no drivers, no services.** It runs as you, like any normal app, and only changes your own settings.
+- **Clean uninstall.** Use the tray menu (**Uninstall Backdrop**) or Settings → Apps, and everything is removed: the app, its settings, its startup entry and its cache.
+- The colour filter uses Windows' own built-in screen colour transform, the same one Windows' colour filters use. If Backdrop is ever closed, your screen goes straight back to normal.
 ## Using it
 
 Click the tray icon:
