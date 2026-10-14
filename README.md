@@ -1,5 +1,9 @@
 # Backdrop
 
+<video src="https://github.com/MilkmanAbi/Backdrop/raw/main/assets/Demo.mp4" controls muted autoplay loop playsinline width="100%"></video>
+
+<p align="center"><a href="assets/Demo.mp4">▶ Watch the demo</a></p>
+
 A tiny Windows tray app that does two things well:
 
 - **Video wallpaper**: any video, GIF or WebP plays behind your desktop icons, starts the moment you sign in, and pauses when you're not looking at the desktop.
