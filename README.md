@@ -1,8 +1,6 @@
 # Backdrop
 
-<video src="https://github.com/MilkmanAbi/Backdrop/raw/main/assets/Demo.mp4" controls muted autoplay loop playsinline width="100%"></video>
-
-<p align="center"><a href="assets/Demo.mp4">▶ Watch the demo</a></p>
+https://github.com/user-attachments/assets/982a6081-589e-4bf8-a705-9a0f701e1d26
 
 A tiny Windows tray app that does two things well:
 
