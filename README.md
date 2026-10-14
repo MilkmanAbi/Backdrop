@@ -7,13 +7,15 @@ A tiny Windows tray app that does two things well:
 - **Video wallpaper**: any video, GIF or WebP plays behind your desktop icons, starts the moment you sign in, and pauses when you're not looking at the desktop.
 - **Colour filters for the whole screen**: sepia, amber, greyscale, blue-light and more, each with a strength slider, a sign-in default and a daily schedule. Windows' own colour filters only offer a few, have no intensity setting, and are buried in Settings.
 
+Plus a one-click (or **Win + Alt + H**) show/hide for your desktop icons.
+
 One small native exe (~450 KB). No admin rights, no background services, no network access, no telemetry. Made by Abinaash ([MilkmanAbi](https://github.com/MilkmanAbi)).
 
 <p align="center"><img src="docs/colour-filter.png" width="380" alt="Backdrop's colour filter window"></p>
 
 ## Install
 
-1. Download **`Backdrop-Setup-1.1.0.exe`** from [Releases](https://github.com/MilkmanAbi/Backdrop/releases/latest).
+1. Download **`Backdrop-Setup-1.2.0.exe`** from [Releases](https://github.com/MilkmanAbi/Backdrop/releases/latest).
 2. Run it. Windows will probably show a blue **"Windows protected your PC"** screen. Click **More info**, then **Run anyway**. That screen appears for any app that isn't code-signed, which costs money every year; it doesn't mean anything was found.
 3. Backdrop appears next to the clock, asks you to pick a video or GIF, and from then on starts by itself every time you sign in.
 
@@ -58,6 +60,7 @@ Click the tray icon:
 |---|---|
 | **Colour filter: Sepia 70%** | Turns the filter on or off. The shortcut **Win + Alt + C** works anywhere. If another app already uses it, Backdrop picks a free one and shows it in the menu. |
 | **Colour filters…** | Opens the filter window: pick a filter, drag the slider, and see it live on the whole screen. |
+| **Show desktop icons** | Hides or shows all your desktop icons in one click, for a clean screen or some privacy. The shortcut **Win + Alt + H** works anywhere. It flips Windows' own setting (the same as right-click → View → Show desktop icons), so it's remembered after a restart. |
 | **Video wallpaper on** | Turns the wallpaper on or off. When off, it unloads completely and uses about 9 MB of RAM. |
 | **Choose video or GIF…** | MP4, MOV, AVI, MKV, WMV, GIF (including transparent ones) and WebP (including animated ones). |
 | **Fit** | Fill (crop), Fit (black bars), Stretch, or Center (original size). |

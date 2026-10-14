@@ -1,6 +1,6 @@
 ; Backdrop installer (Inno Setup 6.7.3). Per-user, no admin: installs to %LOCALAPPDATA%\Programs\Backdrop.
 ; Replaces an earlier install under the old name (VidWall), keeping the chosen wallpaper.
-#define AppVer "1.1.0"
+#define AppVer "1.2.0"
 
 [Setup]
 AppId={{B3D7A1C4-2E9F-4B6A-8C51-7A0E6F2D9B13}

@@ -1,7 +1,8 @@
 // Backdrop - video wallpaper + whole-screen colour filters for Windows 10/11, as one small tray app.
 // Tray icon: Colour filter on/off, Colour filters... (filter.cpp / panel.cpp), Video wallpaper on/off, Choose video or GIF...,
 // Fit, Uninstall, Exit. Win+Alt+C (or a fallback combo) toggles the colour filter. Settings in HKCU\Software\Backdrop.
-// Command line: /on /off /toggle /exit /filter /filters (forwarded to the running copy; no argument pops its menu),
+// Desktop icons on/off (tray menu, Win+Alt+H or a fallback combo, /icons) uses Explorer's own "Show desktop icons" switch.
+// Command line: /on /off /toggle /exit /filter /filters /icons (forwarded to the running copy; no argument pops its menu),
 //               /install /uninstall (used by the installer: logon task, cleanup).
 // Media is converted once (convert.cpp) into an H.264 MP4 baked at the display's resolution for the chosen fit;
 // playback is Media Foundation IMFMediaEngine (hardware decode) -> D3D11 flip swap chain in a window that sits
@@ -60,9 +61,10 @@ using Microsoft::WRL::ComPtr;
 #define LOG(...) do {} while (0)
 #endif
 
-enum : UINT { WM_TRAY = WM_APP + 1, WM_SHOWMENU, WM_MFERROR, WM_SETSTATE, WM_CONVPROG, WM_CONVDONE };   // WM_SETSTATE: 0 off, 1 on, 2 toggle, 3 exit, 4 filter toggle, 5 filter window
-enum : UINT { ID_TOGGLE = 1, ID_CHOOSE, ID_EXIT, ID_UNINSTALL, ID_CANCEL, ID_FILTER, ID_FILTERS, ID_FIT0 = 20 };
-enum : int { HK_FILTER = 1 };
+enum : UINT { WM_TRAY = WM_APP + 1, WM_SHOWMENU, WM_MFERROR, WM_SETSTATE, WM_CONVPROG, WM_CONVDONE };   // WM_SETSTATE: 0 off, 1 on, 2 toggle, 3 exit, 4 filter toggle, 5 filter window, 6 desktop icons toggle
+enum : UINT { ID_TOGGLE = 1, ID_CHOOSE, ID_EXIT, ID_UNINSTALL, ID_CANCEL, ID_FILTER, ID_FILTERS, ID_ICONS, ID_FIT0 = 20 };
+enum : int { HK_FILTER = 1, HK_ICONS };
+static const wchar_t* g_iconsKeyName = nullptr;   // shortcut that toggles desktop icons, if one could be registered
 enum : UINT_PTR { T_WATCH = 1, T_PIN };
 static const DWORD CONVERTER_VERSION = 1;   // bump to invalidate every cached conversion
 
@@ -326,6 +328,26 @@ static HWND FindDefView() {
         return TRUE;
     }, (LPARAM)&found);
     return found;   // top-level window that holds the desktop icons
+}
+
+// ---- desktop icons: Explorer's own "View > Show desktop icons" switch (same as the right-click menu, so it stays in
+// sync with Windows and survives restarts). 0x7402 is that menu command on the desktop's SHELLDLL_DefView.
+static HWND DesktopIconView(HWND* defView) {
+    HWND host = FindDefView();
+    HWND dv = host ? FindWindowExW(host, nullptr, L"SHELLDLL_DefView", nullptr) : nullptr;
+    if (defView) *defView = dv;
+    return dv ? FindWindowExW(dv, nullptr, L"SysListView32", nullptr) : nullptr;
+}
+
+static bool DesktopIconsShown() {
+    HWND lv = DesktopIconView(nullptr);
+    return !lv || IsWindowVisible(lv);
+}
+
+static void ToggleDesktopIcons() {
+    HWND dv = nullptr;
+    DesktopIconView(&dv);
+    if (dv) SendMessageTimeoutW(dv, WM_COMMAND, 0x7402, 0, SMTO_ABORTIFHUNG, 2000, nullptr);
 }
 
 static void Detach() {
@@ -890,6 +912,10 @@ static void ShowMenu() {
     AppendMenuW(m, MF_STRING | (g_filterOn ? MF_CHECKED : 0), ID_FILTER, ft);
     AppendMenuW(m, MF_STRING, ID_FILTERS, L"Colour filters…");
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+    wchar_t it[96];
+    swprintf_s(it, L"Show desktop icons%s%s", g_iconsKeyName ? L"\t" : L"", g_iconsKeyName ? g_iconsKeyName : L"");
+    AppendMenuW(m, MF_STRING | (DesktopIconsShown() ? MF_CHECKED : 0), ID_ICONS, it);
+    AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(m, MF_STRING | (g_enabled ? MF_CHECKED : 0) | (PlayPath() ? 0 : MF_GRAYED), ID_TOGGLE, L"Video wallpaper on");
     AppendMenuW(m, MF_STRING, ID_CHOOSE, L"Choose video or GIF…");
     AppendMenuW(m, MF_POPUP, (UINT_PTR)fm, L"Fit");
@@ -904,6 +930,7 @@ static void ShowMenu() {
     if (cmd == ID_TOGGLE) { g_enabled = !g_enabled; SaveSettings(); ApplyState(); }
     else if (cmd == ID_FILTER) FilterSetOn(!g_filterOn, 300);
     else if (cmd == ID_FILTERS) PanelShow(g_inst);
+    else if (cmd == ID_ICONS) ToggleDesktopIcons();
     else if (cmd == ID_CHOOSE) Choose();
     else if (cmd >= ID_FIT0 && cmd <= ID_FIT0 + 3) SetFit(Fit(cmd - ID_FIT0));
     else if (cmd == ID_CANCEL) { CancelJob(); UpdateTip(); }
@@ -953,6 +980,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (w == 3) { DestroyWindow(h); return 0; }
         if (w == 4) { FilterSetOn(!g_filterOn, 300); return 0; }
         if (w == 5) { PanelShow(g_inst); return 0; }
+        if (w == 6) { ToggleDesktopIcons(); return 0; }
         g_enabled = w == 2 ? !g_enabled : w == 1;
         SaveSettings();
         ApplyState();
@@ -974,6 +1002,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_CONVDONE: JobDone((Job*)l); return 0;
     case WM_HOTKEY:
         if (w == HK_FILTER) FilterSetOn(!g_filterOn, 300);
+        if (w == HK_ICONS) ToggleDesktopIcons();
         return 0;
     case WM_SETTINGCHANGE:
         if (ThemeChanged(l)) {   // menus and the tray glyph follow light / dark
@@ -1045,6 +1074,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
     else if (wcsstr(cmd, L"/on")) arg = 1;
     else if (wcsstr(cmd, L"/toggle")) arg = 2;
     else if (wcsstr(cmd, L"/exit")) arg = 3;
+    else if (wcsstr(cmd, L"/icons")) arg = 6;
     else if (wcsstr(cmd, L"/filters")) arg = 5;
     else if (wcsstr(cmd, L"/filter")) arg = 4;
     g_mutex = CreateMutexW(nullptr, TRUE, L"Backdrop.single");
@@ -1099,6 +1129,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
         {MOD_WIN | MOD_ALT, 'C', L"Win+Alt+C"}, {MOD_CONTROL | MOD_WIN | MOD_ALT, 'F', L"Ctrl+Win+Alt+F"}, {MOD_CONTROL | MOD_SHIFT | MOD_WIN, 'F', L"Ctrl+Shift+Win+F"}};
     for (auto& k : keys)
         if (RegisterHotKey(g_main, HK_FILTER, k.mod | MOD_NOREPEAT, k.vk)) { g_hotkeyOk = true; g_hotkeyName = k.name; break; }
+    static const struct { UINT mod, vk; const wchar_t* name; } iconKeys[] = {
+        {MOD_WIN | MOD_ALT, 'H', L"Win+Alt+H"}, {MOD_WIN | MOD_ALT, 'I', L"Win+Alt+I"}, {MOD_CONTROL | MOD_WIN | MOD_ALT, 'H', L"Ctrl+Win+Alt+H"}};
+    for (auto& k : iconKeys)
+        if (RegisterHotKey(g_main, HK_ICONS, k.mod | MOD_NOREPEAT, k.vk)) { g_iconsKeyName = k.name; break; }
     ThemeInit();
     RegisterPowerSettingNotification(g_main, &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_WINDOW_HANDLE);
 
@@ -1110,6 +1144,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
     if (!g_pinned) SetTimer(g_main, T_PIN, 500, nullptr);
     if (arg == 4) FilterSetOn(!g_filterOn, 0);
     if (arg == 5) PanelShow(inst);
+    if (arg == 6) ToggleDesktopIcons();
     if (!g_src[0] && !g_asked) { g_asked = 1; SaveSettings(); Choose(); }   // first run only, not at every login
 
     MSG msg;
