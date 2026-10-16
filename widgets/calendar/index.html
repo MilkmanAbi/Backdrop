@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Calendar</title>
+<meta name="widget-size" content="280x270">
+<style>
+  body { margin: 0; font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif; color: #fff; }
+  .card { margin: 0; padding: 14px 16px; border-radius: 18px;
+          background: rgba(16, 18, 38, 0.55); border: 1px solid rgba(255, 255, 255, 0.10); }
+  h1 { margin: 0 0 8px 4px; font: 600 18px "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  table { border-collapse: collapse; width: 100%; }
+  th { font-size: 11px; font-weight: 600; opacity: 0.6; padding: 4px 0; }
+  td { text-align: center; font-size: 13px; padding: 5px 0; border-radius: 999px; }
+  td.out { opacity: 0.3; }
+  td.today { background: rgba(255, 255, 255, 0.9); color: #14162a; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="card"><h1 id="title"></h1><table id="grid"></table></div>
+  <script>
+    function render() {
+      const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+      document.getElementById("title").textContent = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m] + " " + y;
+      const first = new Date(y, m, 1), start = (first.getDay() + 6) % 7;      // weeks start on Monday
+      let html = "<tr>" + ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map(d => "<th>" + d + "</th>").join("") + "</tr>";
+      for (let row = 0, day = 1 - start; row < 6; row++) {
+        html += "<tr>";
+        for (let c = 0; c < 7; c++, day++) {
+          const d = new Date(y, m, day), out = d.getMonth() !== m;
+          const today = !out && d.getDate() === now.getDate();
+          html += "<td class='" + (out ? "out" : "") + (today ? " today" : "") + "'>" + d.getDate() + "</td>";
+        }
+        html += "</tr>";
+      }
+      document.getElementById("grid").innerHTML = html;
+    }
+    render();
+    setInterval(render, 60 * 1000);   // picks up midnight
+  </script>
+</body>
+</html>

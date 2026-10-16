@@ -1,0 +1,86 @@
+<html window-frame="transparent" window-resizable="false" disable-debug>
+<head>
+<meta charset="utf-8">
+<!-- "Arrange widgets" command bar: Grid / Free move, Guides, Auto grid, grid size, Done. Shown at the bottom of the screen.
+     Layout rule: every item has a fixed height and is centred on the bar's middle with flex margins (margin: * 0);
+     the segmented control is an inline-block like the buttons (a plain block ignores the flex margins in Sciter). -->
+<style>
+  html { background: transparent; }
+  body { margin: 0; width: *; height: *; box-sizing: border-box; flow: horizontal; padding: 0 12dip;
+         background: rgb(38,38,38); border: 1px solid rgba(255,255,255,0.10); border-radius: 12dip;
+         color: #fff; font: 14px "Segoe UI Variable Text", "Segoe UI"; }
+  body > * { margin-top: *; margin-bottom: *; }          /* flex margins centre every item on the bar's middle */
+  .gap  { width: 8dip; }                                   /* between items of a group */
+  .sep  { width: 1px; height: 24dip; margin-left: 12dip; margin-right: 12dip; background: rgba(255,255,255,0.14); }
+  .grow { width: *; }
+
+  i { font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-style: normal; font-size: 16px; line-height: 16px;
+      width: 16px; height: 16px; margin-right: 8dip; }
+  button { box-sizing: border-box; height: 32dip; padding: 0 12dip; margin: 0; flow: horizontal; vertical-align: middle;
+           font: inherit; line-height: 20dip; color: #fff; background: rgba(255,255,255,0.06);
+           border: 1px solid rgba(255,255,255,0.08); border-radius: 6dip; }
+  button > * { margin-top: *; margin-bottom: *; }
+  button:hover { background: rgba(255,255,255,0.10); }
+  button:active { background: rgba(255,255,255,0.04); }
+
+  /* segmented control: one 32dip pill, the selected half raised */
+  .seg { box-sizing: border-box; height: 32dip; padding: 2dip; margin-top: 10.6dip; margin-bottom: 0; flow: horizontal;   /* a container: flex margins don't apply, so (bar 54dip inside - 32) / 2 */
+         border-radius: 6dip;
+         background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); }
+  .seg button { height: 26dip; border: none; background: transparent; border-radius: 4dip; padding: 0 12dip; }
+  .seg button:hover { background: rgba(255,255,255,0.06); }
+  .seg button.on { background: rgba(255,255,255,0.15); }
+  button.toggle.on { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.14); }
+
+  .label { height: 20dip; line-height: 20dip; color: #c8c8c8; white-space: nowrap; margin-right: 12dip; }
+  .value { height: 20dip; line-height: 20dip; width: 48dip; text-align: right; color: #fff; }
+  input[type="hslider"] { width: *; min-width: 120dip; height: 4dip; margin-left: 0; margin-right: 0;
+                          border: none; border-radius: 2dip; background: rgba(255,255,255,0.35); }
+  .off { opacity: 0.35; }
+  button#done { width: 88dip; padding: 0; horizontal-align: center; background: var(accent, #c27ba0); color: #000;
+                border: none; font-weight: 600; }
+  button#done:hover { opacity: 0.92; }
+  button#done > span { margin-left: *; margin-right: *; }
+</style>
+<script type="module">
+  const api = Window.this.arrange;
+  const $ = (s) => document.$(s);
+  const slider = $("#size"), val = $("#val");
+  try { document.documentElement.style.variable("accent", api.accent()); } catch (e) {}
+  function show() {
+    const free = api.isFree();
+    $("#grid").classList.toggle("on", !free);
+    $("#free").classList.toggle("on", free);
+    $("#guides").classList.toggle("on", api.guides());
+    for (const el of document.$$(".sizepart")) el.classList.toggle("off", free);
+    slider.state.disabled = free;
+    slider.value = api.gridSize();
+    val.textContent = slider.value + " px";
+  }
+  slider.on("input", () => { val.textContent = slider.value + " px"; api.setGrid(+slider.value); });
+  $("#grid").on("click", () => { api.setFree(false); show(); });
+  $("#free").on("click", () => { api.setFree(true); show(); });
+  $("#guides").on("click", () => { api.setGuides(!api.guides()); show(); });
+  $("#auto").on("click", () => { api.autoGrid(); show(); });
+  $("#done").on("click", () => api.done());
+  document.on("keydown", (e) => { if (e.code === "Escape" || e.code === "KeyESCAPE") { api.done(); return true; } });
+  show();
+</script>
+</head>
+<body>
+  <div class="seg">
+    <button id="grid"><i>&#xE80A;</i><span>Grid</span></button>
+    <button id="free"><i>&#xE7C2;</i><span>Free move</span></button>
+  </div>
+  <div class="sep"></div>
+  <button id="guides" class="toggle" title="Show lines when widgets line up or are evenly spaced"><i>&#xE8A9;</i><span>Guides</span></button>
+  <div class="gap"></div>
+  <button id="auto" title="Pick the grid size that fits your widgets best"><i>&#xE945;</i><span>Auto grid</span></button>
+  <div class="sep"></div>
+  <span class="label sizepart">Grid size</span>
+  <input type="hslider" id="size" class="sizepart grow" min="8" max="96" step="1" value="24">
+  <span class="value sizepart" id="val">24 px</span>
+  <div class="sep"></div>
+  <button id="done"><span>Done</span></button>
+</body>
+</html>

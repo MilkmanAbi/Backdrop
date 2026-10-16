@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Moon phase</title>
+<meta name="widget-size" content="260x120">
+<style>
+  body { margin: 0; font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif; color: #fff; }
+  .card { margin: 0; padding: 14px 18px; border-radius: 18px; overflow: hidden;
+          background: rgba(16, 18, 38, 0.55); border: 1px solid rgba(255, 255, 255, 0.10); }
+  canvas { float: left; width: 92px; height: 92px; margin-right: 16px; }
+  #name { font: 600 18px "Segoe UI Variable Display", "Segoe UI", sans-serif; margin-top: 18px; }
+  #lit { margin-top: 6px; font-size: 13px; opacity: 0.7; }
+</style>
+</head>
+<body>
+  <div class="card"><canvas id="moon" width="184" height="184"></canvas><div id="name"></div><div id="lit"></div></div>
+  <script>
+    // phase from a known new moon (6 Jan 2000 18:14 UTC), synodic month 29.530589 days
+    function phase(date) {
+      const days = (date.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+      return ((days / 29.530589) % 1 + 1) % 1;            // 0 = new, 0.5 = full
+    }
+    function draw() {
+      const p = phase(new Date());
+      const names = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous", "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"];
+      document.getElementById("name").textContent = names[Math.round(p * 8) % 8];
+      const lit = (1 - Math.cos(2 * Math.PI * p)) / 2;
+      document.getElementById("lit").textContent = Math.round(lit * 100) + "% illuminated";
+      const c = document.getElementById("moon").getContext("2d"), r = 84, cx = 92, cy = 92;
+      c.clearRect(0, 0, 184, 184);
+      c.fillStyle = "rgba(255, 255, 255, 0.10)";           // the dark side, faintly
+      c.beginPath(); c.arc(cx, cy, r, 0, 2 * Math.PI); c.fill();
+      c.fillStyle = "#fff1d6";                              // lit part: half disc + terminator ellipse
+      const waxing = p < 0.5, k = Math.cos(2 * Math.PI * p); // k: 1 new .. -1 full
+      c.beginPath();
+      c.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, !waxing);
+      c.ellipse(cx, cy, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, (k > 0) === waxing);
+      c.fill();
+    }
+    draw();
+    setInterval(draw, 10 * 60 * 1000);
+  </script>
+</body>
+</html>

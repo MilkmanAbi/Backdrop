@@ -1,6 +1,6 @@
 ; Backdrop installer (Inno Setup 6.7.3). Per-user, no admin: installs to %LOCALAPPDATA%\Programs\Backdrop.
 ; Replaces an earlier install under the old name (VidWall), keeping the chosen wallpaper.
-#define AppVer "1.2.0"
+#define AppVer "1.3.0"
 
 [Setup]
 AppId={{B3D7A1C4-2E9F-4B6A-8C51-7A0E6F2D9B13}
@@ -30,11 +30,21 @@ VersionInfoVersion={#AppVer}
 VersionInfoDescription=Backdrop setup
 
 [Files]
-Source: "backdrop.exe"; DestDir: "{app}"; Flags: ignoreversion
+; stage\ is assembled by stage.bat (build.bat runs it): the core, the optional app/widgets process and its files
+Source: "stage\backdrop.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "stage\backdrop-ui.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "stage\sciter.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "stage\ui\*"; DestDir: "{app}\ui"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "stage\widgets\*"; DestDir: "{app}\widgets"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+; built-in widgets and app pages are replaced as a whole on upgrade (user widgets live in %LOCALAPPDATA%\Backdrop)
+Type: filesandordirs; Name: "{app}\ui"
+Type: filesandordirs; Name: "{app}\widgets"
+
 [Icons]
-Name: "{userprograms}\Backdrop"; Filename: "{app}\backdrop.exe"; Comment: "Video wallpaper and colour filters (opens the tray menu)"
+Name: "{userprograms}\Backdrop"; Filename: "{app}\backdrop-ui.exe"; Parameters: "/app"; IconFilename: "{app}\backdrop.exe"; Comment: "Video wallpaper, colour filters and desktop widgets"
 Name: "{userprograms}\Backdrop colour filters"; Filename: "{app}\backdrop.exe"; Parameters: "/filters"; Comment: "Pick a colour filter and its strength"
 
 [Run]
@@ -111,6 +121,7 @@ end;
 
 function InitializeSetup(): Boolean;
 begin
+  CloseByClass('BackdropUI');   // the app / widgets process holds sciter.dll open
   CloseByClass('BackdropMain');
   Result := True;
 end;

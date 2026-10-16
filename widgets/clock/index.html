@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Clock</title>
+<meta name="widget-size" content="284x114">
+<style>
+  body { margin: 0; font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif; color: #fff; }
+  .card { margin: 0; padding: 14px 20px 16px; border-radius: 18px;
+          background: rgba(16, 18, 38, 0.55); border: 1px solid rgba(255, 255, 255, 0.10); }
+  #time { font-size: 50px; font-weight: 600; line-height: 1; white-space: nowrap; }
+  #time small { font-size: 18px; font-weight: 500; margin-left: 6px; opacity: 0.8; }
+  #date { margin-top: 8px; font-size: 15px; opacity: 0.75; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div class="card"><div id="time">--:--</div><div id="date"></div></div>
+  <script>
+    // updates once a second; costs next to nothing
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const time = document.getElementById("time"), date = document.getElementById("date");
+    function tick() {
+      const now = new Date(), h = now.getHours(), m = String(now.getMinutes()).padStart(2, "0");
+      time.innerHTML = ((h % 12) || 12) + ":" + m + "<small>" + (h < 12 ? "AM" : "PM") + "</small>";
+      date.textContent = DAYS[now.getDay()] + ", " + now.getDate() + " " + MONTHS[now.getMonth()];
+    }
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

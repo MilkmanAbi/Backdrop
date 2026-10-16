@@ -1,0 +1,172 @@
+<html window-frame="standard" window-material="blur-desktop" window-width="900dip" window-height="640dip"
+      window-min-width="720dip" window-min-height="500dip" window-title="Backdrop" disable-debug>
+<head>
+<meta charset="utf-8">
+<title>Backdrop</title>
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+  <nav id="nav">
+    <button data-page="wallpaper" class="current"><i>&#xE91B;</i>Wallpaper</button>
+    <button data-page="filter"><i>&#xE790;</i>Colour filter</button>
+    <button data-page="icons"><i>&#xE7F4;</i>Desktop icons</button>
+    <button data-page="widgets"><i>&#xF0E2;</i>Widgets</button>
+    <div class="spacer"></div>
+    <button data-page="about"><i>&#xE946;</i>About</button>
+  </nav>
+
+  <main id="main">
+    <div id="offline" class="banner">
+      <span>Backdrop isn't running, so the wallpaper and colour filter are off.</span>
+      <button class="accent" id="startCore">Start Backdrop</button>
+    </div>
+
+    <!-- Wallpaper -->
+    <section id="wallpaper" class="page current">
+      <h1>Wallpaper</h1>
+      <div class="card">
+        <div class="row">
+          <i>&#xE714;</i>
+          <div class="text"><div class="title">Video wallpaper</div><div class="sub" id="wpFile">No video chosen yet</div></div>
+          <button class="switch" id="wpOn"><span></span></button>
+        </div>
+        <div class="row">
+          <i>&#xE8E5;</i>
+          <div class="text"><div class="title">Video or GIF</div><div class="sub">MP4, MOV, AVI, GIF or WebP. It's converted once to your screen size, then plays from the cache.</div></div>
+          <button id="wpChoose">Choose…</button>
+        </div>
+        <div class="row">
+          <i>&#xE9A6;</i>
+          <div class="text"><div class="title">Fit</div><div class="sub">How the picture fills the screen</div></div>
+          <select id="wpFit">
+            <option value="0">Fill</option><option value="1">Fit</option><option value="2">Stretch</option><option value="3">Center</option>
+          </select>
+        </div>
+        <div class="row" id="wpPrep" hidden>
+          <i>&#xE895;</i>
+          <div class="text"><div class="title">Preparing the wallpaper…</div><div class="sub" id="wpPct"></div></div>
+        </div>
+      </div>
+      <p class="note">The video pauses by itself when a window covers the whole screen, when the PC is locked and when the display is off.</p>
+    </section>
+
+    <!-- Colour filter -->
+    <section id="filter" class="page">
+      <h1>Colour filter</h1>
+      <div class="card">
+        <div class="row">
+          <i>&#xE790;</i>
+          <div class="text"><div class="title">Colour filter</div><div class="sub" id="fKey">Tints the whole screen</div></div>
+          <button class="switch" id="fOn"><span></span></button>
+        </div>
+        <div class="row column">
+          <div class="text"><div class="title">Filter</div></div>
+          <div class="chips" id="fTypes"></div>
+        </div>
+        <div class="row">
+          <i>&#xE706;</i>
+          <div class="text"><div class="title">Intensity</div><div class="sub" id="fPct">70%</div></div>
+          <input type="hslider" id="fInt" min="0" max="100" step="1" value="70">
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <i>&#xE77B;</i>
+          <div class="text"><div class="title">Turn on when I sign in</div><div class="sub">Otherwise it starts off every sign-in</div></div>
+          <button class="switch" id="fLogin"><span></span></button>
+        </div>
+        <div class="row">
+          <i>&#xE823;</i>
+          <div class="text"><div class="title">Schedule</div><div class="sub">On and off at the same times every day</div></div>
+          <button class="switch" id="fSched"><span></span></button>
+        </div>
+        <div class="row" id="fTimes">
+          <i></i>
+          <div class="text"><div class="title">From</div></div>
+          <select id="fFrom"></select>
+          <div class="text narrow"><div class="title">to</div></div>
+          <select id="fTo"></select>
+        </div>
+      </div>
+      <p class="note"><a id="fPanel">Open the filter panel with live previews</a></p>
+    </section>
+
+    <!-- Desktop icons -->
+    <section id="icons" class="page">
+      <h1>Desktop icons</h1>
+      <div class="card">
+        <div class="row">
+          <i>&#xE7F4;</i>
+          <div class="text"><div class="title">Show desktop icons</div><div class="sub" id="iKey">Same as right-click desktop › View › Show desktop icons</div></div>
+          <button class="switch" id="iOn"><span></span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Widgets -->
+    <section id="widgets" class="page">
+      <h1>Widgets</h1>
+      <div class="card">
+        <div class="row">
+          <i>&#xF0E2;</i>
+          <div class="text"><div class="title">Widgets</div><div class="sub">Little web pages that live on your desktop, under every window</div></div>
+          <button class="switch" id="wOn"><span></span></button>
+        </div>
+        <div class="row">
+          <i>&#xE77B;</i>
+          <div class="text"><div class="title">Open widgets when I sign in</div><div class="sub">They start after the wallpaper is up, so sign-in stays just as fast</div></div>
+          <button class="switch" id="wLogin"><span></span></button>
+        </div>
+        <div class="row">
+          <i>&#xE7C2;</i>
+          <div class="text"><div class="title">Arrange widgets</div><div class="sub">Dims the screen and shows a grid: drag widgets and they snap into line. Right-click a widget for more.</div></div>
+          <button id="wEdit">Arrange…</button>
+        </div>
+      </div>
+
+      <h2>Your widgets</h2>
+      <div class="card" id="wList"></div>
+      <div class="buttons">
+        <button class="accent" id="wAdd"><i>&#xE710;</i>Add widget…</button>
+        <button id="wFolder"><i>&#xE838;</i>Open widgets folder</button>
+      </div>
+
+      <h2>Gallery</h2>
+      <div class="gallery" id="wGallery"></div>
+
+      <h2>Make your own</h2>
+      <div class="card">
+        <div class="row column">
+          <div class="text">
+            <div class="sub">A widget is one <b>.html</b> file, or a <b>.zip</b> with an <b>index.html</b> and its images, fonts and scripts. HTML, CSS and JavaScript as usual: animations, GIFs, fetch, WebSockets, games, anything.</div>
+            <div class="sub">Size it with <code>&lt;meta name="widget-size" content="300x150"&gt;</code>. Widgets run at 24 fps; ask for more with <code>&lt;meta name="widget-fps" content="60"&gt;</code>.</div>
+            <div class="sub">Round corners with <code>border-radius</code>. For any other shape add <code>data-shape="M… Z"</code> (an SVG path) to an element with a background image. Empty space around your elements is see-through and click-through.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="page">
+      <h1>About</h1>
+      <div class="card">
+        <div class="row">
+          <span class="biglogo">&#xE91B;</span>
+          <div class="text"><div class="title big">Backdrop</div><div class="sub" id="aVer">Version</div><div class="sub">Made by Abinaash (MilkmanAbi)</div></div>
+          <button id="aGit">GitHub</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row column">
+          <div class="text">
+            <div class="sub">This Application (or Component) uses Sciter Engine (http://sciter.com/), copyright Terra Informatica Software, Inc.</div>
+            <div class="sub"><a id="aSciter">sciter.com</a></div>
+            <div class="sub">Also uses libwebp (Google, BSD licence) and Lucide icons (ISC licence). See THIRD-PARTY-NOTICES.txt.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

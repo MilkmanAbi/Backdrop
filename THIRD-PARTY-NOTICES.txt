@@ -83,3 +83,77 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+==============================================================================
+Sciter Engine (https://sciter.com/) - sciter.dll
+Renders the Backdrop app window and desktop widgets (backdrop-ui.exe only).
+==============================================================================
+
+This Application (or Component) uses Sciter Engine (http://sciter.com/), copyright Terra Informatica Software, Inc.
+
+# Sciter Engine ™ Software Product.
+
+## END USER LICENSE AGREEMENT
+
+This End User License Agreement is not a sales contract but an agreement between Terra Informatica Software, Inc. and you regarding the use of the software - the Sciter Engine. Installing this software implies that you agree to the terms of this agreement. If you disagree with any part of this license agreement, do not install the software.
+
+"**Sciter Engine Software Product**" shall mean one of **sciter.dll, sciter.dylib and sciter.so - dynamically linked library (DLL) that contain embeddable Sciter Engine**, the software programs and files needed to integrate the Sciter Engine with a software application, including documentation, examples, include files, declarations, source code, utility programs, and libraries.
+
+### 1. RIGHT TO USE THE SOFTWARE
+
+Terra Informatica Software, Inc. gives you the right to use this software in accordance with the terms of this agreement.
+
+You may utilize sciter.dll in any manner you see fit (subject to the limitations outlined in this license) to build commercial or non-commercial applications and components.
+
+Your application shall include link to Terra Informatica site in "About" dialog or similar place in your application. Text of the link: This Application (or Component) uses Sciter Engine ([http://sciter.com/](http://sciter.com)), copyright Terra Informatica Software, Inc.
+
+We will be delighted (but not demand) if you will place link to [http://sciter.com/](http://sciter.com) on the web page of your product using the Sciter.
+
+### 2. COPYRIGHT
+
+The copyright and intellectual property rights of this software and its documentation and packaging are owned by Terra Informatica Software, Inc. and are protected by the copyright laws of Canada and international intellectual property right treaties.
+
+### 3. LIMITATION OF WARRANTY
+
+Trying to satisfy your needs as much as possible Terra Informatica Software, Inc. does not warrant though that using this software will fit a user's particular purpose, and is not liable for any damages caused by the use of this software.
+
+### 4. ACKNOWLEDGEMENT
+
+You acknowledge that you have read and understand this license agreement and that you agree to its terms. You acknowledge that this agreement has priority over any order, engagement, advertisement, or other written agreement which precedes it.
+
+Terra Informatica Software, Inc. © 2006-2022, all rights reserved.
+
+==============================================================================
+Sciter SDK headers (https://gitlab.com/c-smile/sciter-js-sdk)
+Compiled into backdrop-ui.exe.
+==============================================================================
+
+BSD 3-Clause License
+
+Copyright (c) 2020, Andrew Fedoniouk @ Terra Informatica Software, Inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

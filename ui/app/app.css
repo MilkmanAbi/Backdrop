@@ -1,0 +1,124 @@
+/* Backdrop app: Windows 11 Settings look. Colours follow Windows' light/dark mode and accent (set by app.js). */
+html {
+  var(bg): transparent;            /* Mica shows through */
+  var(card): rgba(255,255,255,0.70);
+  var(cardHover): rgba(249,249,249,0.85);
+  var(stroke): rgba(0,0,0,0.07);
+  var(text): #1b1b1b;
+  var(text2): #5d5d5d;
+  var(navHover): rgba(0,0,0,0.04);
+  var(navSel): rgba(0,0,0,0.06);
+  var(ctrl): rgba(255,255,255,0.7);
+  var(ctrlHover): rgba(249,249,249,0.5);
+  var(ctrlStroke): rgba(0,0,0,0.12);
+  var(accent): #005fb8;
+  var(onAccent): #ffffff;
+  background: transparent;
+  color: color(text);
+  font: system;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+html.dark {
+  var(card): rgba(255,255,255,0.05);
+  var(cardHover): rgba(255,255,255,0.08);
+  var(stroke): rgba(0,0,0,0.20);
+  var(text): #ffffff;
+  var(text2): #c5c5c5;
+  var(navHover): rgba(255,255,255,0.06);
+  var(navSel): rgba(255,255,255,0.08);
+  var(ctrl): rgba(255,255,255,0.06);
+  var(ctrlHover): rgba(255,255,255,0.08);
+  var(ctrlStroke): rgba(255,255,255,0.09);
+  var(onAccent): #000000;
+}
+
+body { margin: 0; flow: horizontal; width: *; height: *; overflow: hidden; }
+
+i, .logo, .biglogo { font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-style: normal; }
+
+/* ---------- navigation */
+nav { width: 280dip; height: *; flow: vertical; padding: 16dip 12dip 16dip 12dip; }
+nav .brand { padding: 6dip 12dip 18dip 12dip; font-size: 13px; color: color(text); flow: horizontal; vertical-align: middle; }
+nav .brand .logo { font-size: 16px; margin-right: 12dip; color: color(accent); }
+nav button { display: block; flow: horizontal; vertical-align: middle; width: *; height: 36dip; margin: 2dip 0; padding: 0 12dip;
+             background: transparent; border: none; border-radius: 5dip; color: color(text); font: inherit; text-align: left; position: relative; }
+nav button i { font-size: 16px; margin-right: 14dip; width: 16px; }
+nav button:hover { background: color(navHover); }
+nav button.current { background: color(navSel); }
+nav button.current::before { content: ""; position: absolute; left: 0; top: 10dip; height: 16dip; width: 3dip; border-radius: 2dip; background: color(accent); }
+nav .spacer { height: *; }
+
+/* ---------- pages */
+main { width: *; height: *; overflow-y: scroll-indicator; padding: 0 28dip 28dip 8dip; }
+.page { display: none; }
+.page.current { display: block; }
+h1 { font-family: "Segoe UI Variable Display", "Segoe UI"; font-size: 28px; font-weight: 600; margin: 16dip 0 22dip 4dip; }
+h2 { font-size: 14px; font-weight: 600; margin: 26dip 0 8dip 4dip; }
+.note { color: color(text2); font-size: 12px; margin: 10dip 4dip; }
+a { color: color(accent); cursor: pointer; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+
+.card { margin: 0 0 6dip 0; border-radius: 6dip; background: color(card); border: 1px solid color(stroke); }
+.card:empty { display: none; }
+.row { flow: horizontal; vertical-align: middle; padding: 14dip 18dip; border-bottom: 1px solid color(stroke); }
+.row > * { vertical-align: middle; }
+.row:last-child { border-bottom: none; }
+.row.column { flow: vertical; }
+.row > i { font-size: 18px; width: 20dip; margin-right: 18dip; color: color(text); }
+.row .text { width: *; margin-right: 16dip; }
+.row .text.narrow { width: max-content; margin: 0 10dip; }
+.title { font-size: 14px; }
+.title.big { font-size: 20px; font-weight: 600; }
+.sub { font-size: 12px; color: color(text2); margin-top: 2dip; }
+.row.column .sub { margin-top: 8dip; line-height: 1.5; }
+.biglogo { font-size: 40px; color: color(accent); margin-right: 18dip; }
+
+.banner { display: none; flow: horizontal; vertical-align: middle; margin: 16dip 0 0 0; padding: 12dip 16dip; border-radius: 6dip;
+          background: rgba(255,185,0,0.15); border: 1px solid rgba(255,185,0,0.35); }
+.banner span { width: *; }
+html.offline .banner { display: block; }
+
+/* ---------- controls */
+button { font: inherit; color: color(text); background: color(ctrl); border: 1px solid color(ctrlStroke); border-radius: 4dip;
+         padding: 5dip 14dip; min-width: 96dip; height: 32dip; flow: horizontal; vertical-align: middle; horizontal-align: center; }
+button:hover { background: color(ctrlHover); }
+button i { margin-right: 8dip; font-size: 14px; }
+button.accent { background: color(accent); color: color(onAccent); border-color: transparent; }
+button.accent:hover { opacity: 0.9; }
+.buttons { flow: horizontal; margin: 10dip 0 0 0; }
+.buttons button { margin-right: 8dip; }
+
+button.switch { min-width: 0; width: 40dip; height: 20dip; padding: 0; border-radius: 10dip; border: 1px solid color(text2);
+                background: transparent; position: relative; }
+button.switch span { position: absolute; left: 4dip; top: 4dip; width: 10dip; height: 10dip; border-radius: 5dip; background: color(text2);
+                     transition: left linear 120ms; }
+button.switch.on { background: color(accent); border-color: color(accent); }
+button.switch.on span { left: 23dip; top: 3dip; width: 12dip; height: 12dip; border-radius: 6dip; background: color(onAccent); }
+button.switch:disabled { opacity: 0.4; }
+
+select { font: inherit; color: color(text); background: color(ctrl); border: 1px solid color(ctrlStroke); border-radius: 4dip;
+         height: 32dip; min-width: 130dip; padding: 0 8dip; }
+select > popup { background: #f9f9f9; color: #1b1b1b; border: 1px solid rgba(0,0,0,0.1); border-radius: 6dip; padding: 4dip; }
+html.dark select > popup { background: #2c2c2c !important; color: #ffffff !important; border-color: rgba(255,255,255,0.08); }
+html.dark select > popup > option { color: #ffffff; background: transparent; }
+select > popup > option { padding: 5dip 10dip; border-radius: 4dip; }
+select > popup > option:hover { background: color(navHover); }
+select > popup > option:checked, select > popup > option:current { background: color(navSel); color: inherit; }
+
+input[type="hslider"] { width: 220dip; height: 4dip; margin: 8dip 0; border: none; border-radius: 2dip; background: color(text2); }
+
+.chips { flow: horizontal-flow; margin-top: 10dip; }
+.chips button { min-width: 0; margin: 0 6dip 6dip 0; padding: 4dip 14dip; height: 30dip; border-radius: 15dip; }
+.chips button.on { background: color(accent); color: color(onAccent); border-color: transparent; }
+
+/* widget list + gallery */
+
+#wList .row button.remove { min-width: 0; width: 32dip; padding: 0; margin-right: 14dip; border: none; background: transparent; }
+#wList .row button.remove:hover { background: color(ctrlHover); }
+#wList .missing { color: #e81123; }
+.gallery { flow: horizontal-flow; }
+.gallery .tile { width: 200dip; margin: 0 8dip 8dip 0; padding: 14dip 16dip; border-radius: 6dip; background: color(card); border: 1px solid color(stroke); flow: vertical; }
+.gallery .tile .title { margin-bottom: 10dip; }
+.gallery .tile button { min-width: 0; margin-left: 0; margin-right: *; }
