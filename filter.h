@@ -7,6 +7,7 @@ enum { FILTER_COUNT = 11 };
 const wchar_t* FilterName(int type);
 // rows = output channel; intensity 0..1 blends from identity to the full filter
 void FilterMatrix(int type, float intensity, float m[3][3], float off[3]);
+void FilterCurrent(float m[3][3], float off[3]);   // what's on screen right now (mid-fade too); any thread
 
 struct FilterSettings {
     int type = 0;                      // Sepia

@@ -1,4 +1,4 @@
-// Backdrop "Colour filter" window: filter cards with live previews, intensity slider, sign-in default, schedule.
+// Backdrop "Colour filter" window: filter cards with live previews, intensity slider, sign-in default, schedule, blur.
 #pragma once
 #include <windows.h>
 

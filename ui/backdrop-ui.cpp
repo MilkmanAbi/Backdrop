@@ -43,7 +43,7 @@ namespace sciter { namespace application {
 static const wchar_t* KEY = L"Software\\Backdrop";
 static const wchar_t* WKEY = L"Software\\Backdrop\\Widgets";
 static const UINT IPC_COMMAND = 0xBD01, IPC_STATE = 0xBD02, IPC_UI = 0xBD03;
-static const wchar_t* VERSION = L"1.3.0";
+static const wchar_t* VERSION = L"1.4.0";
 
 static std::wstring g_exeDir, g_userWidgets, g_builtinWidgets, g_uiDir;
 static HWND g_msg;                 // hidden window: IPC endpoint + single-instance target

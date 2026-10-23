@@ -1,8 +1,9 @@
-// Backdrop "Colour filter" window, drawn with Direct2D / DirectWrite in the Windows 11 style
+// Backdrop "Colour filter" window (plus the blur row), drawn with Direct2D / DirectWrite in the Windows 11 style
 // (Mica where available, follows light/dark and the accent colour). Everything applies live.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include "panel.h"
+#include "blur.h"
 #include "filter.h"
 #include "theme.h"
 #include <d2d1.h>
@@ -37,8 +38,8 @@ static ComPtr<ID2D1BitmapBrush> g_swatch[FILTER_COUNT];
 static ComPtr<IDWriteTextFormat> g_fTitle, g_fBody, g_fBodyR, g_fSmall, g_fCard, g_fTime, g_fArrow;
 
 // ------------------------------------------------------------------ layout (DIPs)
-static const float W = 440, H = 778, PAD = 24;
-enum { E_NONE = -1, E_MAIN = 100, E_SLIDER, E_LOGIN, E_SCHED, E_FROM_DEC, E_FROM_INC, E_TO_DEC, E_TO_INC, E_FROM, E_TO };
+static const float W = 440, H = 814, PAD = 24;
+enum { E_NONE = -1, E_MAIN = 100, E_SLIDER, E_LOGIN, E_SCHED, E_FROM_DEC, E_FROM_INC, E_TO_DEC, E_TO_INC, E_FROM, E_TO, E_BLUR, E_BLUR_SLIDER };
 enum { TM_REPEAT = 1, TM_APPLY };
 static int g_hover = E_NONE, g_press = E_NONE;
 
@@ -53,6 +54,9 @@ static const D2D1_RECT_F kMain = R(W - PAD - 44, 24, 44, 22), kSlider = R(PAD, 5
 static const D2D1_RECT_F kLoginRow = R(PAD, 574, W - 2 * PAD, 32), kSchedRow = R(PAD, 612, W - 2 * PAD, 32);
 static const D2D1_RECT_F kFrom = R(PAD + 42, 654, 146, 36), kTo = R(PAD + 232, 654, 146, 36);
 static const float kTrack0 = PAD + 10, kTrack1 = W - PAD - 10, kTrackY = 532;
+// blur: one row under the schedule, "Blur  [slider]  50%  (toggle)"
+static const D2D1_RECT_F kBlur = R(W - PAD - 44, 755, 44, 22), kBlurSlider = R(PAD + 52, 750, 236, 32);
+static const float kBTrack0 = PAD + 64, kBTrack1 = W - PAD - 120, kBTrackY = 766;
 
 static int Hit(float x, float y) {
     if (In(R(kMain.left - 6, kMain.top - 6, 56, 34), x, y)) return E_MAIN;
@@ -61,6 +65,8 @@ static int Hit(float x, float y) {
     if (In(kSlider, x, y)) return E_SLIDER;
     if (In(kLoginRow, x, y)) return E_LOGIN;
     if (In(kSchedRow, x, y)) return E_SCHED;
+    if (In(R(kBlur.left - 6, kBlur.top - 6, 56, 34), x, y)) return E_BLUR;
+    if (In(kBlurSlider, x, y)) return E_BLUR_SLIDER;
     if (g_fs.schedule) {
         if (In(kFrom, x, y)) return x < kFrom.left + 34 ? E_FROM_DEC : x >= kFrom.right - 34 ? E_FROM_INC : E_FROM;
         if (In(kTo, x, y)) return x < kTo.left + 34 ? E_TO_DEC : x >= kTo.right - 34 ? E_TO_INC : E_TO;
@@ -278,9 +284,20 @@ static void Paint() {
     else swprintf_s(s, L"On every day from %s to %s. You can still switch it by hand; the next scheduled time takes over again.", f, t);
     Text(s, g_fSmall, R(PAD, 700, W - 2 * PAD, 36), p.text2);
     Fill(D2D1::RectF(PAD, 742, W - PAD, 743), 0, p.divider);
-    if (g_hotkeyOk) swprintf_s(s, L"%s turns the filter on or off from anywhere.", g_hotkeyName);
-    else wcscpy_s(s, L"Tip: the tray icon's menu turns the filter on or off.");
-    Text(s, g_fSmall, R(PAD, 752, W - 2 * PAD, 20), p.text2);
+    Text(L"Blur", g_fBody, R(PAD, 750, 60, 32), p.text);
+    float bv = g_blurStrength / 100.0f, bx = kBTrack0 + bv * (kBTrack1 - kBTrack0);
+    Fill(D2D1::RectF(kBTrack0, kBTrackY - 2, kBTrack1, kBTrackY + 2), 2, p.track);
+    Fill(D2D1::RectF(kBTrack0, kBTrackY - 2, bx, kBTrackY + 2), 2, p.accent);
+    Circle(bx, kBTrackY, 11, p.thumbBorder);
+    Circle(bx, kBTrackY, 10, p.thumb);
+    Circle(bx, kBTrackY, g_press == E_BLUR_SLIDER ? 5.f : g_hover == E_BLUR_SLIDER ? 7.f : 6.f, p.accent);
+    swprintf_s(s, L"%d%%", g_blurStrength);
+    Text(s, g_fBodyR, R(kBTrack1 + 16, 750, 44, 32), p.text);
+    Toggle(p, kBlur, g_blurOn, g_hover == E_BLUR);
+    if (g_hotkeyOk && g_blurKeyOk) swprintf_s(s, L"%s turns the filter on or off, %s the blur.", g_hotkeyName, g_blurKeyName);
+    else if (g_hotkeyOk) swprintf_s(s, L"%s turns the filter on or off from anywhere.", g_hotkeyName);
+    else wcscpy_s(s, L"Tip: the tray icon's menu turns the filter and the blur on or off.");
+    Text(s, g_fSmall, R(PAD, 788, W - 2 * PAD, 20), p.text2);
 
     if (g_rt->EndDraw() == D2DERR_RECREATE_TARGET) Discard();
 }
@@ -294,6 +311,17 @@ static void SliderTo(float x) {
     if (v == g_fs.intensity && g_filterOn) return;
     g_fs.intensity = v;
     FilterSetOn(true, 0);   // live while dragging
+}
+
+static void BlurTo(int v) {
+    BlurSetStrength(v);   // clamps to the cap
+    if (!g_blurOn) BlurSetOn(true);
+    if (g_filterChanged) g_filterChanged();
+}
+
+static void BlurSliderTo(float x) {
+    int v = int(std::lround((x - kBTrack0) / (kBTrack1 - kBTrack0) * 100));
+    if (std::clamp(v, 10, 100) != g_blurStrength || !g_blurOn) BlurTo(v);
 }
 
 static void StepTime(int which, int delta, bool snap) {
@@ -345,6 +373,7 @@ static LRESULT CALLBACK PanelProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_MOUSEMOVE: {
         float x = GET_X_LPARAM(l) * k, y = GET_Y_LPARAM(l) * k;
         if (g_press == E_SLIDER) { SliderTo(x); return 0; }
+        if (g_press == E_BLUR_SLIDER) { BlurSliderTo(x); return 0; }
         int e = Hit(x, y);
         if (e != g_hover) { g_hover = e; Invalidate(); }
         TRACKMOUSEEVENT t{sizeof(t), TME_LEAVE, h, 0};
@@ -362,6 +391,8 @@ static LRESULT CALLBACK PanelProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (e >= 0 && e < FILTER_COUNT) { g_fs.type = e; FilterSave(); FilterSetOn(true, 300); }
         else if (e == E_MAIN) FilterSetOn(!g_filterOn, 300);
         else if (e == E_SLIDER) SliderTo(x);
+        else if (e == E_BLUR) { BlurSetOn(!g_blurOn); if (g_filterChanged) g_filterChanged(); }
+        else if (e == E_BLUR_SLIDER) BlurSliderTo(x);
         else if (e == E_LOGIN) { g_fs.atLogin = !g_fs.atLogin; FilterSave(); }
         else if (e == E_SCHED) { g_fs.schedule = !g_fs.schedule; FilterSave(); ScheduleFollow(400); }
         else if (e >= E_FROM_DEC && e <= E_TO_INC) { StepArrow(e); SetTimer(h, TM_REPEAT, 400, nullptr); }
@@ -393,7 +424,8 @@ static LRESULT CALLBACK PanelProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             g_fs.intensity = std::clamp(g_fs.intensity + 5 * steps, 0, 100);
             FilterSetOn(true, 0);
             FilterSave();
-        } else if (e == E_FROM || e == E_FROM_DEC || e == E_FROM_INC) StepTime(0, steps * minutes, false);
+        } else if (e == E_BLUR_SLIDER || e == E_BLUR) BlurTo(g_blurStrength + 5 * steps);
+        else if (e == E_FROM || e == E_FROM_DEC || e == E_FROM_INC) StepTime(0, steps * minutes, false);
         else if (e == E_TO || e == E_TO_DEC || e == E_TO_INC) StepTime(1, steps * minutes, false);
         return 0;
     }

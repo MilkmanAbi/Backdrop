@@ -56,6 +56,11 @@ function refresh() {
   $("#fTo").value = String(f.to - f.to % 15);
   for (const s of document.$$("#fFrom, #fTo")) s.state.disabled = !f.schedule;
 
+  const b = state.blur;
+  setSwitch($("#bOn"), b.on);
+  $("#bKey").textContent = "Softens the whole screen, together with any filter" + (b.hotkey ? " · " + b.hotkey : "");
+  if (!blurSliding) { $("#bStr").value = b.strength; $("#bPct").textContent = b.strength + "%"; }
+
   setSwitch($("#iOn"), state.icons.shown);
   $("#iKey").textContent = "Same as right-click desktop › View › Show desktop icons" + (state.icons.hotkey ? " · " + state.icons.hotkey : "");
 }
@@ -87,6 +92,18 @@ for (const id of ["#fFrom", "#fTo"]) {
   sel.on("change", () => send((id === "#fFrom" ? "filter.from=" : "filter.to=") + sel.value));
 }
 $("#fPanel").on("click", () => api.send("filter.panel"));
+
+// ---------------------------------------------------------------- blur
+let blurSliding = false, blurTimer = 0;
+$("#bOn").on("click", () => send("blur=" + (isOn($("#bOn")) ? "off" : "on")));
+$("#bStr").on("input", () => {   // live while dragging (the core turns it on and caps it)
+  blurSliding = true;
+  $("#bPct").textContent = $("#bStr").value + "%";
+  api.send("blur.strength=" + $("#bStr").value);
+  if (!isOn($("#bOn"))) api.send("blur=on");
+  clearTimeout(blurTimer);
+  blurTimer = setTimeout(() => { blurSliding = false; refresh(); }, 400);
+});
 
 // ---------------------------------------------------------------- desktop icons
 $("#iOn").on("click", () => { setSwitch($("#iOn"), !isOn($("#iOn"))); api.send("icons=toggle"); setTimeout(refresh, 600); });

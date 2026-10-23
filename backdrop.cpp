@@ -2,7 +2,9 @@
 // Tray icon: Colour filter on/off, Colour filters... (filter.cpp / panel.cpp), Video wallpaper on/off, Choose video or GIF...,
 // Fit, Uninstall, Exit. Win+Alt+C (or a fallback combo) toggles the colour filter. Settings in HKCU\Software\Backdrop.
 // Desktop icons on/off (tray menu, Win+Alt+H or a fallback combo, /icons) uses Explorer's own "Show desktop icons" switch.
-// Command line: /on /off /toggle /exit /filter /filters /icons (forwarded to the running copy; no argument pops its menu),
+// Blur (blur.cpp): a slight whole-screen blur alongside the filter (tray menu, Win+Alt+Z or a fallback combo, /blur); always
+// starts off.
+// Command line: /on /off /toggle /exit /filter /filters /icons /blur (forwarded to the running copy; no argument pops its menu),
 //               /install /uninstall (used by the installer: logon task, cleanup).
 // Media is converted once (convert.cpp) into an H.264 MP4 baked at the display's resolution for the chosen fit;
 // playback is Media Foundation IMFMediaEngine (hardware decode) -> D3D11 flip swap chain in a window that sits
@@ -29,6 +31,7 @@
 #include <cwchar>
 #include <string>
 #include <uxtheme.h>
+#include "blur.h"
 #include "convert.h"
 #include "filter.h"
 #include "panel.h"
@@ -62,9 +65,9 @@ using Microsoft::WRL::ComPtr;
 #define LOG(...) do {} while (0)
 #endif
 
-enum : UINT { WM_TRAY = WM_APP + 1, WM_SHOWMENU, WM_MFERROR, WM_SETSTATE, WM_CONVPROG, WM_CONVDONE, WM_CHOOSE };   // WM_SETSTATE: 0 off, 1 on, 2 toggle, 3 exit, 4 filter toggle, 5 filter window, 6 desktop icons toggle
-enum : UINT { ID_TOGGLE = 1, ID_CHOOSE, ID_EXIT, ID_UNINSTALL, ID_CANCEL, ID_FILTER, ID_FILTERS, ID_ICONS, ID_APP, ID_FIT0 = 20 };
-enum : int { HK_FILTER = 1, HK_ICONS };
+enum : UINT { WM_TRAY = WM_APP + 1, WM_SHOWMENU, WM_MFERROR, WM_SETSTATE, WM_CONVPROG, WM_CONVDONE, WM_CHOOSE, WM_BLURFAIL };   // WM_SETSTATE: 0 off, 1 on, 2 toggle, 3 exit, 4 filter toggle, 5 filter window, 6 desktop icons toggle, 7 blur toggle
+enum : UINT { ID_TOGGLE = 1, ID_CHOOSE, ID_EXIT, ID_UNINSTALL, ID_CANCEL, ID_FILTER, ID_FILTERS, ID_ICONS, ID_APP, ID_BLUR, ID_FIT0 = 20 };
+enum : int { HK_FILTER = 1, HK_ICONS, HK_BLUR };
 static const wchar_t* g_iconsKeyName = nullptr;   // shortcut that toggles desktop icons, if one could be registered
 enum : UINT_PTR { T_WATCH = 1, T_PIN, T_WIDGETS };
 static const UINT IPC_COMMAND = 0xBD01, IPC_STATE = 0xBD02;   // WM_COPYDATA from / to backdrop-ui.exe
@@ -492,6 +495,7 @@ static void UpdateTip() {
     wchar_t f[64];
     if (g_filterOn) swprintf_s(f, L"%s %d%%", FilterName(g_fs.type), g_fs.intensity);
     else wcscpy_s(f, L"off");
+    if (g_blurOn) swprintf_s(f + wcslen(f), 64 - wcslen(f), L"\nBlur: %d%%", g_blurStrength);
     if (g_job) swprintf_s(g_nid.szTip, L"Backdrop\nPreparing wallpaper %d%%\nColour filter: %s", g_job->pct, f);
     else swprintf_s(g_nid.szTip, L"Backdrop\nWallpaper: %s\nColour filter: %s", g_enabled ? L"on" : L"off", f);
     g_nid.uFlags = NIF_TIP;
@@ -943,6 +947,8 @@ static void ShowMenu() {
     swprintf_s(ft, L"Colour filter: %s %d%%%s%s", FilterName(g_fs.type), g_fs.intensity, g_hotkeyOk ? L"\t" : L"", g_hotkeyOk ? g_hotkeyName : L"");
     AppendMenuW(m, MF_STRING | (g_filterOn ? MF_CHECKED : 0), ID_FILTER, ft);
     AppendMenuW(m, MF_STRING, ID_FILTERS, L"Colour filters…");
+    swprintf_s(ft, L"Blur: %d%%%s%s", g_blurStrength, g_blurKeyOk ? L"\t" : L"", g_blurKeyOk ? g_blurKeyName : L"");
+    AppendMenuW(m, MF_STRING | (g_blurOn ? MF_CHECKED : 0), ID_BLUR, ft);
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     wchar_t it[96];
     swprintf_s(it, L"Show desktop icons%s%s", g_iconsKeyName ? L"\t" : L"", g_iconsKeyName ? g_iconsKeyName : L"");
@@ -962,6 +968,7 @@ static void ShowMenu() {
     if (cmd == ID_TOGGLE) { g_enabled = !g_enabled; SaveSettings(); ApplyState(); }
     else if (cmd == ID_FILTER) FilterSetOn(!g_filterOn, 300);
     else if (cmd == ID_FILTERS) PanelShow(g_inst);
+    else if (cmd == ID_BLUR) { BlurSetOn(!g_blurOn); g_filterChanged(); }
     else if (cmd == ID_ICONS) ToggleDesktopIcons();
     else if (cmd == ID_CHOOSE) Choose();
     else if (cmd >= ID_FIT0 && cmd <= ID_FIT0 + 3) SetFit(Fit(cmd - ID_FIT0));
@@ -1026,7 +1033,9 @@ static std::wstring StateJson() {
                g_fs.from, g_fs.to, g_hotkeyOk ? g_hotkeyName : L"");
     j += b;
     for (int i = 0; i < FILTER_COUNT; i++) { j += i ? L",\"" : L"\""; j += JsonEsc(FilterName(i)); j += L"\""; }
-    swprintf_s(b, L"]},\"icons\":{\"shown\":%s,\"hotkey\":\"%s\"}}", DesktopIconsShown() ? L"true" : L"false", g_iconsKeyName ? g_iconsKeyName : L"");
+    swprintf_s(b, L"]},\"blur\":{\"on\":%s,\"strength\":%d,\"hotkey\":\"%s\"}", g_blurOn ? L"true" : L"false", g_blurStrength, g_blurKeyOk ? g_blurKeyName : L"");
+    j += b;
+    swprintf_s(b, L",\"icons\":{\"shown\":%s,\"hotkey\":\"%s\"}}", DesktopIconsShown() ? L"true" : L"false", g_iconsKeyName ? g_iconsKeyName : L"");
     j += b;
     return j;
 }
@@ -1056,6 +1065,8 @@ static bool Command(HWND from, const std::wstring& c) {
         if (g_fs.schedule) ScheduleFollow(400);
     }
     else if (k == L"filter.panel") PanelShow(g_inst);
+    else if (k == L"blur") BlurSetOn(v == L"toggle" ? !g_blurOn : on);
+    else if (k == L"blur.strength") BlurSetStrength(n);
     else if (k == L"icons") { if (v == L"toggle" || on != DesktopIconsShown()) ToggleDesktopIcons(); }
     else return false;
     if (g_filterChanged) g_filterChanged();
@@ -1097,6 +1108,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (w == 4) { FilterSetOn(!g_filterOn, 300); return 0; }
         if (w == 5) { PanelShow(g_inst); return 0; }
         if (w == 6) { ToggleDesktopIcons(); return 0; }
+        if (w == 7) { BlurSetOn(!g_blurOn); g_filterChanged(); return 0; }
         g_enabled = w == 2 ? !g_enabled : w == 1;
         SaveSettings();
         ApplyState();
@@ -1127,6 +1139,13 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_HOTKEY:
         if (w == HK_FILTER) FilterSetOn(!g_filterOn, 300);
         if (w == HK_ICONS) ToggleDesktopIcons();
+        if (w == HK_BLUR) { BlurSetOn(!g_blurOn); g_filterChanged(); }
+        return 0;
+    case WM_BLURFAIL:
+        g_blurOn = false;
+        g_filterChanged();
+        MessageBoxW(nullptr, w == 2 ? L"Blur needs Windows 10 version 2004 or newer." : L"Blur couldn't start on this display, so it's off again.",
+                    L"Backdrop", MB_ICONINFORMATION);
         return 0;
     case WM_SETTINGCHANGE:
         if (ThemeChanged(l)) {   // menus and the tray glyph follow light / dark
@@ -1169,6 +1188,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     case WM_DESTROY:
         Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        BlurShutdown();
         FilterShutdown();
         TurnOff();
         PostQuitMessage(0);
@@ -1199,6 +1219,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
     else if (wcsstr(cmd, L"/toggle")) arg = 2;
     else if (wcsstr(cmd, L"/exit")) arg = 3;
     else if (wcsstr(cmd, L"/icons")) arg = 6;
+    else if (wcsstr(cmd, L"/blur")) arg = 7;
     else if (wcsstr(cmd, L"/filters")) arg = 5;
     else if (wcsstr(cmd, L"/filter")) arg = 4;
     g_mutex = CreateMutexW(nullptr, TRUE, L"Backdrop.single");
@@ -1257,6 +1278,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
         {MOD_WIN | MOD_ALT, 'H', L"Win+Alt+H"}, {MOD_WIN | MOD_ALT, 'I', L"Win+Alt+I"}, {MOD_CONTROL | MOD_WIN | MOD_ALT, 'H', L"Ctrl+Win+Alt+H"}};
     for (auto& k : iconKeys)
         if (RegisterHotKey(g_main, HK_ICONS, k.mod | MOD_NOREPEAT, k.vk)) { g_iconsKeyName = k.name; break; }
+    static const struct { UINT mod, vk; const wchar_t* name; } blurKeys[] = {   // not Win+Alt+B: that's Windows' HDR switch
+        {MOD_WIN | MOD_ALT, 'Z', L"Win+Alt+Z"}, {MOD_CONTROL | MOD_WIN | MOD_ALT, 'B', L"Ctrl+Win+Alt+B"}, {MOD_CONTROL | MOD_SHIFT | MOD_WIN, 'B', L"Ctrl+Shift+Win+B"}};
+    for (auto& k : blurKeys)
+        if (RegisterHotKey(g_main, HK_BLUR, k.mod | MOD_NOREPEAT, k.vk)) { g_blurKeyOk = true; g_blurKeyName = k.name; break; }
+    BlurInit(g_main, WM_BLURFAIL);   // strength only: the blur itself always starts off
     ThemeInit();
     RegisterPowerSettingNotification(g_main, &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_WINDOW_HANDLE);
 
@@ -1269,6 +1295,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
     if (arg == 4) FilterSetOn(!g_filterOn, 0);
     if (arg == 5) PanelShow(inst);
     if (arg == 6) ToggleDesktopIcons();
+    if (arg == 7) BlurSetOn(true);
     {   // desktop widgets (a separate process) only if the user turned on "Open widgets at sign-in"; checked after the
         // wallpaper and filter are already up, and started later still (see T_WIDGETS)
         DWORD on = 0, atLogin = 0, sz = sizeof(DWORD);

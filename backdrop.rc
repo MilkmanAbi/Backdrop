@@ -6,8 +6,8 @@
 1 RT_MANIFEST "backdrop.manifest"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,3,0,0
- PRODUCTVERSION 1,3,0,0
+ FILEVERSION 1,4,0,0
+ PRODUCTVERSION 1,4,0,0
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
  FILEFLAGS 0
  FILEOS VOS_NT_WINDOWS32
@@ -20,11 +20,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Backdrop"
             VALUE "FileDescription", "Backdrop - video wallpaper and colour filters"
-            VALUE "FileVersion", "1.3.0"
+            VALUE "FileVersion", "1.4.0"
             VALUE "InternalName", "backdrop"
             VALUE "OriginalFilename", "backdrop.exe"
             VALUE "ProductName", "Backdrop"
-            VALUE "ProductVersion", "1.3.0"
+            VALUE "ProductVersion", "1.4.0"
         END
     END
     BLOCK "VarFileInfo"

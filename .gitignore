@@ -7,3 +7,4 @@ test/
 *.pdb
 *.ilk
 stage/
+blur_*.h

@@ -122,6 +122,20 @@ static Mat g_cur = Identity(), g_from, g_to;
 static DWORD g_t0, g_dur;
 static UINT_PTR g_fadeTimer, g_retryTimer, g_schedTimer;
 static int g_retries;
+static SRWLOCK g_curLock = SRWLOCK_INIT;   // g_cur is also read by the blur thread
+
+void FilterCurrent(float m[3][3], float off[3]) {
+    AcquireSRWLockShared(&g_curLock);
+    memcpy(m, g_cur.m, sizeof(g_cur.m));
+    memcpy(off, g_cur.o, sizeof(g_cur.o));
+    ReleaseSRWLockShared(&g_curLock);
+}
+
+static void SetCur(const Mat& m) {
+    AcquireSRWLockExclusive(&g_curLock);
+    g_cur = m;
+    ReleaseSRWLockExclusive(&g_curLock);
+}
 
 static bool IsIdentity(const Mat& m) {
     Mat id = Identity();
@@ -164,7 +178,7 @@ static void CALLBACK RetryTick(HWND, UINT, UINT_PTR, DWORD) {
 }
 
 static void PushOrRetry(const Mat& m) {
-    g_cur = m;
+    SetCur(m);
     if (!Push(m) && !g_retryTimer) { g_retries = 0; g_retryTimer = SetTimer(nullptr, 0, 50, RetryTick); }
 }
 
@@ -210,6 +224,7 @@ void FilterShutdown() {
     if (g_fadeTimer) KillTimer(nullptr, g_fadeTimer);
     if (g_retryTimer) KillTimer(nullptr, g_retryTimer);
     g_fadeTimer = g_retryTimer = 0;
+    SetCur(Identity());
     Push(Identity());
     if (g_magInit) { MagUninitialize(); g_magInit = false; }
 }

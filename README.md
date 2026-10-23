@@ -6,6 +6,7 @@ A tiny Windows tray app that does a few things well:
 
 - **Video wallpaper**: any video, GIF or WebP plays behind your desktop icons, starts the moment you sign in, and pauses when you're not looking at the desktop.
 - **Colour filters for the whole screen**: sepia, amber, greyscale, blue-light and more, each with a strength slider, a sign-in default and a daily schedule. Windows' own colour filters only offer a few, have no intensity setting, and are buried in Settings.
+- **Blur for the whole screen**: a slight, adjustable blur that softens everything at once, on its own or together with any colour filter. Handy when the screen is just too much.
 - **Desktop widgets** you make with plain HTML, CSS and JavaScript: clocks, GIFs, live feeds, little games. They sit on your wallpaper, under every window.
 
 Plus a one-click (or **Win + Alt + H**) show/hide for your desktop icons, and a proper settings app for all of it.
@@ -16,7 +17,7 @@ The core is one small native exe (~450 KB). The app window and widgets run in a 
 
 ## Install
 
-1. Download **`Backdrop-Setup-1.3.0.exe`** from [Releases](https://github.com/MilkmanAbi/Backdrop/releases/latest).
+1. Download **`Backdrop-Setup-1.4.0.exe`** from [Releases](https://github.com/MilkmanAbi/Backdrop/releases/latest).
 2. Run it. Windows will probably show a blue **"Windows protected your PC"** screen. Click **More info**, then **Run anyway**. That screen appears for any app that isn't code-signed, which costs money every year; it doesn't mean anything was found.
 3. Backdrop appears next to the clock, asks you to pick a video or GIF, and from then on starts by itself every time you sign in.
 
@@ -53,6 +54,8 @@ Yes. And you don't have to take my word for it:
 - **No admin rights, no drivers, no services.** It runs as you, like any normal app, and only changes your own settings.
 - **Clean uninstall.** Use the tray menu (**Uninstall Backdrop**) or Settings → Apps, and everything is removed: the app, its settings, its startup entry and its cache.
 - The colour filter uses Windows' own built-in screen colour transform, the same one Windows' colour filters use. If Backdrop is ever closed, your screen goes straight back to normal.
+- The blur works on a copy of your screen that stays on your graphics card: it's never saved, sent anywhere or seen by any other app. Close Backdrop and it's gone.
+
 ## Using it
 
 Open **Backdrop** from the Start menu (or **Open Backdrop…** in the tray menu) for the settings app: wallpaper, colour filter, desktop icons and widgets, all in one window. Everything is also one click away from the tray icon:
@@ -62,6 +65,7 @@ Open **Backdrop** from the Start menu (or **Open Backdrop…** in the tray menu)
 | **Open Backdrop…** | Opens the Backdrop app. |
 | **Colour filter: Sepia 70%** | Turns the filter on or off. The shortcut **Win + Alt + C** works anywhere. If another app already uses it, Backdrop picks a free one and shows it in the menu. |
 | **Colour filters…** | Opens the filter window: pick a filter, drag the slider, and see it live on the whole screen. |
+| **Blur: 50%** | Turns the blur on or off. The shortcut **Win + Alt + Z** works anywhere (or a free one shown in the menu). |
 | **Show desktop icons** | Hides or shows all your desktop icons in one click, for a clean screen or some privacy. The shortcut **Win + Alt + H** works anywhere. It flips Windows' own setting (the same as right-click → View → Show desktop icons), so it's remembered after a restart. |
 | **Video wallpaper on** | Turns the wallpaper on or off. When off, it unloads completely and uses about 9 MB of RAM. |
 | **Choose video or GIF…** | MP4, MOV, AVI, MKV, WMV, GIF (including transparent ones) and WebP (including animated ones). |
@@ -78,6 +82,19 @@ Sepia, Amber, Blue light filter, Greyscale, Washed out, Dim, Night red, Inverted
 - Remembers your filter and strength.
 
 Filters use Windows' own full-screen colour transform, the same one Windows' built-in colour filters use. It works on everything, including games, videos and the taskbar, costs nothing, and switches off instantly if Backdrop is ever closed.
+
+### Blur
+
+A slight blur over the whole screen, for when sharp detail and busy pages get overwhelming. It sits side by side with the colour filters: use either, or both at once.
+
+- **Strength:** 10–100%, live, in the filter window (bottom row) or the Backdrop app. 100% is a hard limit: even at full strength small text stays readable, so you can always find the switch to turn it off again.
+- **Always starts off** when Backdrop starts. Only the strength is remembered.
+- **Win + Alt + Z** turns it on or off from anywhere, and so does the tray menu.
+- Your mouse pointer stays sharp. Clicks, typing and scrolling go straight through to your apps as usual.
+- Screenshots and screen shares show your screen *without* the blur, so what you share stays readable for others.
+- Video with copy protection (some streaming sites) can't be copied, so it can't be blurred either: while it's on screen, that screen shows without the blur.
+
+How it works: Windows has no built-in screen blur, so Backdrop copies the screen on the graphics card (Desktop Duplication), blurs only the parts that changed, and shows the result in a click-through window above everything that is left out of screen captures. While your screen isn't changing it does no work at all; while video or animation is playing it uses a little CPU and some of your graphics card.
 
 ### Video wallpaper
 
@@ -155,7 +172,7 @@ Widgets are rendered by [Sciter](https://sciter.com/), a small HTML/CSS/JS engin
 
 ## Build from source
 
-Needs Visual Studio 2022 or 2026 with the C++ workload, CMake, and the [Sciter.JS SDK](https://gitlab.com/c-smile/sciter-js-sdk) in `third_party\sciter-js-sdk` (for its headers and `sciter.dll`). [Inno Setup 6](https://jrsoftware.org/isinfo.php) is only needed for the installer.
+Needs Visual Studio 2022 or 2026 with the C++ workload, CMake, and the [Sciter.JS SDK](https://gitlab.com/c-smile/sciter-js-sdk) in `third_party\sciter-js-sdk` (for its headers and `sciter.dll`). [Inno Setup 6](https://jrsoftware.org/isinfo.php) is only needed for the installer. The blur shaders are compiled by `fxc`, which comes with the Windows SDK in that workload.
 
 ```bat
 get_libwebp.bat   :: once: fetches and builds libwebp (animated WebP support)
@@ -167,6 +184,7 @@ build.bat         :: backdrop.exe, backdrop-ui.exe, stage\ (the install layout) 
 | `backdrop.cpp` | Tray app, wallpaper playback (Media Foundation → D3D11), desktop placement, install and uninstall |
 | `convert.cpp` | One-time GPU conversion (decode → D3D11 video processor → hardware H.264) |
 | `filter.cpp` | Colour matrices, fades, schedule |
+| `blur.cpp`, `blur.hlsl` | The whole-screen blur (Desktop Duplication → D3D11 blur → DirectComposition window) |
 | `panel.cpp` | The colour filter window (Direct2D) |
 | `theme.cpp` | Follows Windows light/dark mode and your accent colour |
 | `ui\backdrop-ui.cpp` | The app window and widgets process (Sciter): widget windows, their menu, frame-rate cap, talking to the core |
