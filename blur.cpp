@@ -89,7 +89,7 @@ struct Out {
     int unsupported = 0;   // DuplicateOutput refusals in a row that waiting won't fix
 };
 
-struct Gpu {
+struct BlurGpu {
     ComPtr<ID3D11Device> dev;
     ComPtr<ID3D11DeviceContext> ctx;
     ComPtr<IDCompositionDevice> dcomp;
@@ -102,7 +102,7 @@ struct Gpu {
     std::vector<std::unique_ptr<Out>> outs;
 };
 
-static std::vector<std::unique_ptr<Gpu>> g_gpus;   // blur thread only
+static std::vector<std::unique_ptr<BlurGpu>> g_gpus;   // blur thread only
 
 // ------------------------------------------------------------------ settings
 static void LoadStrength() {
@@ -219,13 +219,13 @@ static int Build() {
     if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&f))) || FAILED(f.As(&f2))) return 1;
     ComPtr<IDXGIAdapter1> ad;
     for (UINT a = 0; f->EnumAdapters1(a, &ad) != DXGI_ERROR_NOT_FOUND; a++, ad.Reset()) {
-        std::unique_ptr<Gpu> g;
+        std::unique_ptr<BlurGpu> g;
         ComPtr<IDXGIOutput> out;
         for (UINT i = 0; ad->EnumOutputs(i, &out) != DXGI_ERROR_NOT_FOUND; i++, out.Reset()) {
             DXGI_OUTPUT_DESC od;
             if (FAILED(out->GetDesc(&od)) || !od.AttachedToDesktop) continue;
             if (!g) {
-                g.reset(new Gpu);
+                g.reset(new BlurGpu);
                 const D3D_FEATURE_LEVEL fl[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
                 ComPtr<IDXGIDevice> xd;
                 if (FAILED(D3D11CreateDevice(ad.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT, fl, 3,
@@ -308,7 +308,7 @@ static void Lost(Out& o, DWORD now, DWORD retryMs) {
 
 // which part of the reported area r really differs between the new frame (src) and frame (copy orientation, pixels);
 // those tiles are copied into frame
-static RECT Changed(Gpu& g, Out& o, const RECT& r, UINT w, UINT h, ID3D11Resource* src, ID3D11ShaderResourceView* srcSrv) {
+static RECT Changed(BlurGpu& g, Out& o, const RECT& r, UINT w, UINT h, ID3D11Resource* src, ID3D11ShaderResourceView* srcSrv) {
     D3D11_VIEWPORT vp{0, 0, float(w), float(h), 0, 1};
     g.ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     g.ctx->IASetInputLayout(nullptr);
@@ -356,7 +356,7 @@ static RECT Changed(Gpu& g, Out& o, const RECT& r, UINT w, UINT h, ID3D11Resourc
 static DWORD g_fixAt;
 static const DWORD kSettleMs = 250;
 
-static void Acquire(Gpu& g, Out& o, UINT timeout, DWORD now) {
+static void Acquire(BlurGpu& g, Out& o, UINT timeout, DWORD now) {
     if (kTest && o.have) return;
     if (!o.dup) {
         if (int(now - o.retryAt) < 0) return;
@@ -455,7 +455,7 @@ static void Acquire(Gpu& g, Out& o, UINT timeout, DWORD now) {
 
 #ifdef VW_BLURDUMP
 // test build: the back buffer as raw BGRA (int32 width, int32 height, rows) in %TEMP%
-static void Dump(Gpu& g, Out& o, const wchar_t* name) {
+static void Dump(BlurGpu& g, Out& o, const wchar_t* name) {
     ComPtr<ID3D11Texture2D> bb, st;
     o.swap->GetBuffer(0, IID_PPV_ARGS(&bb));
     D3D11_TEXTURE2D_DESC d;
@@ -481,7 +481,7 @@ static void Dump(Gpu& g, Out& o, const wchar_t* name) {
 }
 #endif
 
-static void Render(Gpu& g, Out& o, float sigmaDip, const float fix[3][4], bool all) {
+static void Render(BlurGpu& g, Out& o, float sigmaDip, const float fix[3][4], bool all) {
     int w = o.rc.right - o.rc.left, h = o.rc.bottom - o.rc.top;
     Pass p{};
     int grow = 2 * Kernel(sigmaDip * o.dpi / 96.0f, &p) + 2;

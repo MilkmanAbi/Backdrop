@@ -1,6 +1,6 @@
 ; Backdrop installer (Inno Setup 6.7.3). Per-user, no admin: installs to %LOCALAPPDATA%\Programs\Backdrop.
 ; Replaces an earlier install under the old name (VidWall), keeping the chosen wallpaper.
-#define AppVer "1.4.0"
+#define AppVer "1.5.0"
 
 [Setup]
 AppId={{B3D7A1C4-2E9F-4B6A-8C51-7A0E6F2D9B13}
@@ -30,22 +30,19 @@ VersionInfoVersion={#AppVer}
 VersionInfoDescription=Backdrop setup
 
 [Files]
-; stage\ is assembled by stage.bat (build.bat runs it): the core, the optional app/widgets process and its files
-Source: "stage\backdrop.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "stage\backdrop-ui.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "stage\sciter.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "stage\ui\*"; DestDir: "{app}\ui"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "stage\widgets\*"; DestDir: "{app}\widgets"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "backdrop.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
-; built-in widgets and app pages are replaced as a whole on upgrade (user widgets live in %LOCALAPPDATA%\Backdrop)
+; Remove only files shipped by 1.3/1.4. Personal widgets/settings are preserved.
+Type: files; Name: "{app}\backdrop-ui.exe"
+Type: files; Name: "{app}\sciter.dll"
 Type: filesandordirs; Name: "{app}\ui"
 Type: filesandordirs; Name: "{app}\widgets"
 
 [Icons]
-Name: "{userprograms}\Backdrop"; Filename: "{app}\backdrop-ui.exe"; Parameters: "/app"; IconFilename: "{app}\backdrop.exe"; Comment: "Video wallpaper, colour filters and desktop widgets"
-Name: "{userprograms}\Backdrop colour filters"; Filename: "{app}\backdrop.exe"; Parameters: "/filters"; Comment: "Pick a colour filter and its strength"
+Name: "{userprograms}\Backdrop"; Filename: "{app}\backdrop.exe"; Comment: "Wallpaper, filters and blur (opens the tray menu)"
+Name: "{userprograms}\Backdrop colour filters"; Filename: "{app}\backdrop.exe"; Parameters: "/filters"; Comment: "Colour filters, scheduling and blur"
 
 [Run]
 Filename: "{app}\backdrop.exe"; Parameters: "/install"; StatusMsg: "Setting Backdrop to start when you sign in..."; Flags: runhidden waituntilterminated

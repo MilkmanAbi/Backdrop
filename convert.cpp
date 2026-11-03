@@ -300,10 +300,11 @@ static void ReadFormat(VideoInfo& v) {
 }
 
 // gpuMan == nullptr: probe only (no decoder output needed beyond checking the codec exists)
-static HRESULT OpenVideo(const wchar_t* path, IMFDXGIDeviceManager* gpuMan, VideoInfo& v, wchar_t* err, size_t n) {
+static HRESULT OpenVideo(const wchar_t* path, IMFDXGIDeviceManager* gpuMan, VideoInfo& v, wchar_t* err, size_t n, bool hardware = true) {
     ComPtr<IMFAttributes> at;
     MFCreateAttributes(&at, 4);
-    at->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
+    at->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, hardware);
+    if (!hardware) at->SetUINT32(MF_SOURCE_READER_DISABLE_DXVA, TRUE);
     if (gpuMan) {
         at->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, gpuMan);
         at->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE);
@@ -380,7 +381,7 @@ bool PlayableAsIs(const wchar_t* path, const Probe& p, int sw, int sh, Fit fit) 
 }
 
 // ------------------------------------------------------------------ GPU pieces
-struct Gpu {
+struct ConvertGpu {
     ComPtr<ID3D11Device> dev;
     ComPtr<ID3D11DeviceContext> ctx;
     ComPtr<ID3D11VideoDevice> vdev;
@@ -406,7 +407,7 @@ struct Scaler {
     ComPtr<ID3D11Texture2D> out;
     ComPtr<ID3D11VideoProcessorOutputView> ov;
 
-    bool Init(Gpu& g, int inW, int inH, int outW, int outH, RECT src, int rotation, bool rgbIn, bool bt709, bool fullRange) {
+    bool Init(ConvertGpu& g, int inW, int inH, int outW, int outH, RECT src, int rotation, bool rgbIn, bool bt709, bool fullRange) {
         en.Reset(); vp.Reset(); out.Reset(); ov.Reset();
         D3D11_VIDEO_PROCESSOR_CONTENT_DESC cd{};
         cd.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
@@ -445,7 +446,7 @@ struct Scaler {
         return true;
     }
 
-    bool Blt(Gpu& g, ID3D11Texture2D* tex, UINT slice) {
+    bool Blt(ConvertGpu& g, ID3D11Texture2D* tex, UINT slice) {
         D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC id{};
         id.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
         id.Texture2D.ArraySlice = slice;
@@ -473,7 +474,7 @@ struct Encoder {
     bool hw = false;
     int w = 0, h = 0;
 
-    HRESULT Open(Gpu& g, const wchar_t* path, int ow, int oh, UINT fpsN, UINT fpsD, UINT bitrate, bool useHw) {
+    HRESULT Open(ConvertGpu& g, const wchar_t* path, int ow, int oh, UINT fpsN, UINT fpsD, UINT bitrate, bool useHw) {
         hw = useHw; w = ow; h = oh;
         ComPtr<IMFAttributes> at;
         MFCreateAttributes(&at, 3);
@@ -527,7 +528,7 @@ struct Encoder {
         return sw->BeginWriting();
     }
 
-    HRESULT Write(Gpu& g, ID3D11Texture2D* nv12, LONGLONG t, LONGLONG d) {
+    HRESULT Write(ConvertGpu& g, ID3D11Texture2D* nv12, LONGLONG t, LONGLONG d) {
         ComPtr<IMFSample> s;
         ComPtr<IMFMediaBuffer> b;
         HRESULT hr;
@@ -583,7 +584,7 @@ static UINT Bitrate(int w, int h, double fps) {
 }
 
 // ------------------------------------------------------------------ conversion
-static HRESULT ConvertImage(Gpu& g, Kind k, const ConvertArgs& a, const wchar_t* part, bool hw, wchar_t* err, size_t n) {
+static HRESULT ConvertImage(ConvertGpu& g, Kind k, const ConvertArgs& a, const wchar_t* part, bool hw, wchar_t* err, size_t n) {
     auto src = OpenImage(k, a.src, err, n);
     if (!src) return VW_E_SOURCE;
     int ow, oh;
@@ -640,9 +641,9 @@ static HRESULT ConvertImage(Gpu& g, Kind k, const ConvertArgs& a, const wchar_t*
     return S_OK;
 }
 
-static HRESULT ConvertVideo(Gpu& g, const ConvertArgs& a, const wchar_t* part, bool hw, wchar_t* err, size_t n) {
+static HRESULT ConvertVideo(ConvertGpu& g, const ConvertArgs& a, const wchar_t* part, bool hw, wchar_t* err, size_t n) {
     VideoInfo v;
-    HRESULT hr = OpenVideo(a.src, g.man.Get(), v, err, n);
+    HRESULT hr = OpenVideo(a.src, hw ? g.man.Get() : nullptr, v, err, n, hw);
     if (FAILED(hr)) return hr;
     bool swap = v.rotation == 90 || v.rotation == 270;
     auto setup = [&](Scaler& sc, int& ow, int& oh) {
@@ -678,7 +679,7 @@ static HRESULT ConvertVideo(Gpu& g, const ConvertArgs& a, const wchar_t* part, b
         ComPtr<IMFSample> s;
         if (FAILED(hr = v.r->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, nullptr, &flags, &ts, &s)) || (flags & MF_SOURCE_READERF_ERROR)) {
             Msg(err, n, L"Decoding failed partway through the video (0x%08X).", hr);
-            return VW_E_SOURCE;
+            return FAILED(hr) ? hr : E_FAIL;   // allow a fresh software-decoder retry
         }
         if (flags & MF_SOURCE_READERF_ENDOFSTREAM) break;
         if (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED) {
@@ -751,25 +752,35 @@ static HRESULT ConvertVideo(Gpu& g, const ConvertArgs& a, const wchar_t* part, b
 }
 
 static HRESULT ConvertOnce(const ConvertArgs& a, const wchar_t* part, bool hw, wchar_t* err, size_t n) {
-    Gpu g;
+    ConvertGpu g;
     if (!g.Init()) { Msg(err, n, L"This PC's graphics driver doesn't offer Direct3D 11 video processing."); return E_FAIL; }
     Kind k = Sniff(a.src);
     return k == K_VIDEO ? ConvertVideo(g, a, part, hw, err, n) : ConvertImage(g, k, a, part, hw, err, n);
 }
 
 HRESULT ConvertMedia(const ConvertArgs& a, wchar_t* err, size_t n) {
-    wchar_t part[MAX_PATH + 16];
-    swprintf_s(part, L"%s.part.mp4", a.dst);
+    if (err && n) err[0] = 0;
+    if (!a.src || !a.dst || !a.cancel || a.sw <= 0 || a.sh <= 0 || a.fit < FIT_FILL || a.fit > FIT_CENTER)
+        return E_INVALIDARG;
+    if (InterlockedCompareExchange(a.cancel, 0, 0)) return E_ABORT;
+    // Cancelled jobs finish asynchronously. Give each invocation a private file
+    // so an old job cannot delete or overwrite its replacement's output.
+    static volatile LONG serial = 0;
+    wchar_t part[MAX_PATH + 64];
+    if (swprintf_s(part, L"%s.%lu.%lu.part.mp4", a.dst, GetCurrentProcessId(), DWORD(InterlockedIncrement(&serial))) < 0)
+        return E_INVALIDARG;
     DeleteFileW(part);
     HRESULT hr = ConvertOnce(a, part, true, err, n);
     if (FAILED(hr) && hr != E_ABORT && hr != VW_E_SOURCE) {   // hardware encoder refused: software H.264 encoder
         DeleteFileW(part);
         hr = ConvertOnce(a, part, false, err, n);
     }
+    if (SUCCEEDED(hr) && InterlockedCompareExchange(a.cancel, 0, 0)) hr = E_ABORT;
     if (SUCCEEDED(hr) && !MoveFileExW(part, a.dst, MOVEFILE_REPLACE_EXISTING)) {
         hr = HRESULT_FROM_WIN32(GetLastError());
         Msg(err, n, L"Couldn't save the converted video (0x%08X).", hr);
     }
     if (FAILED(hr)) DeleteFileW(part);
+    else if (err && n) err[0] = 0;
     return hr;
 }

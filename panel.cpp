@@ -29,6 +29,7 @@ const wchar_t* g_hotkeyName = L"";
 
 static HWND g_panel;
 static UINT g_dpi = 96;
+static float g_scale = 1.f;   // fit the complete panel on short/high-DPI work areas
 static bool g_mica = false;
 static ComPtr<ID2D1Factory> g_d2d;
 static ComPtr<IDWriteFactory> g_dw;
@@ -48,7 +49,7 @@ static bool In(const D2D1_RECT_F& r, float x, float y) { return x >= r.left && x
 
 static D2D1_RECT_F CardRect(int i) {
     float cw = (W - 2 * PAD - 12) / 2;
-    return R(PAD + (i % 2) * (cw + 12), 88 + (i / 2) * 66, cw, 56);
+    return R(PAD + (i % 2) * (cw + 12), 88.f + (i / 2) * 66.f, cw, 56);
 }
 static const D2D1_RECT_F kMain = R(W - PAD - 44, 24, 44, 22), kSlider = R(PAD, 516, W - 2 * PAD, 32);
 static const D2D1_RECT_F kLoginRow = R(PAD, 574, W - 2 * PAD, 32), kSchedRow = R(PAD, 612, W - 2 * PAD, 32);
@@ -234,6 +235,7 @@ static void Paint() {
     Pal p = Palette();
     wchar_t s[200];
     g_rt->BeginDraw();
+    g_rt->SetTransform(D2D1::Matrix3x2F::Scale(g_scale, g_scale));
     g_rt->Clear(g_mica ? D2D1::ColorF(0, 0, 0, 0) : p.bg);
 
     Text(L"Colour filter", g_fTitle, R(PAD, 16, 300, 34), p.text);
@@ -343,7 +345,7 @@ static void StepArrow(int e) {
 }
 
 static LRESULT CALLBACK PanelProc(HWND h, UINT m, WPARAM w, LPARAM l) {
-    float k = 96.0f / g_dpi;
+    float k = 96.0f / g_dpi / g_scale;
     switch (m) {
     case WM_PAINT: {
         PAINTSTRUCT ps;
@@ -354,7 +356,9 @@ static LRESULT CALLBACK PanelProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     }
     case WM_ERASEBKGND: return 1;
     case WM_SIZE:
+        g_scale = std::max(0.1f, std::min({1.f, LOWORD(l) * 96.f / g_dpi / W, HIWORD(l) * 96.f / g_dpi / H}));
         if (g_rt) g_rt->Resize(D2D1::SizeU(LOWORD(l), HIWORD(l)));
+        Invalidate();
         return 0;
     case WM_DPICHANGED: {
         g_dpi = HIWORD(w);
@@ -477,7 +481,13 @@ void PanelShow(HINSTANCE inst) {
     AdjustWindowRectExForDpi(&rc, style, FALSE, 0, g_dpi);
     MONITORINFO mi{sizeof(mi)};
     GetMonitorInfoW(mon, &mi);
-    int ww = rc.right - rc.left, wh = rc.bottom - rc.top, margin = MulDiv(12, int(g_dpi), 96);
+    int margin = MulDiv(12, int(g_dpi), 96);
+    int frameW = rc.right - rc.left - LONG(W * g_dpi / 96);
+    int frameH = rc.bottom - rc.top - LONG(H * g_dpi / 96);
+    float fit = std::min({1.f,
+        (mi.rcWork.right - mi.rcWork.left - margin * 2 - frameW) * 96.f / g_dpi / W,
+        (mi.rcWork.bottom - mi.rcWork.top - margin * 2 - frameH) * 96.f / g_dpi / H});
+    int ww = LONG(W * g_dpi / 96 * fit) + frameW, wh = LONG(H * g_dpi / 96 * fit) + frameH;
     int x = mi.rcWork.right - ww - margin, y = std::max<int>(mi.rcWork.top, mi.rcWork.bottom - wh - margin);
     g_panel = CreateWindowExW(0, L"BackdropPanel", L"Colour filter — Backdrop", style, x, y, ww, wh, nullptr, nullptr, inst, nullptr);
     if (!g_panel) return;

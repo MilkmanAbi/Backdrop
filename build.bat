@@ -1,5 +1,5 @@
 @echo off
-rem Build backdrop.exe (static CRT + static libwebp, no runtime dependencies), then backdrop-ui.exe, stage\ and the
+rem Build backdrop.exe (static CRT + static libwebp, no runtime dependencies), then the
 rem installer if Inno Setup is present.
 rem Everything except user32/kernel32/magnification is delay-loaded: a sign-in colour filter goes on before the rest loads.
 rem   build.bat        release build
@@ -32,7 +32,8 @@ if /i "%1"=="log" exit /b 0
 if /i "%1"=="blurtest" exit /b 0
 if /i "%1"=="blurdump" exit /b 0
 if /i "%1"=="exe" exit /b 0
-call "%ROOT%ui\build-ui.bat" || exit /b 1
-cd /d "%ROOT%"
-call "%ROOT%stage.bat" || exit /b 1
-if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q setup.iss || exit /b 1
+if not exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
+  echo Inno Setup 6 is required to build the installer. Use build.bat exe for the core only.
+  exit /b 1
+)
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q setup.iss || exit /b 1

@@ -8,3 +8,8 @@ test/
 *.ilk
 stage/
 blur_*.h
+*.dll
+*.map
+*.idb
+*.ipdb
+*.iobj

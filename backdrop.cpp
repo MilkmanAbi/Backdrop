@@ -66,11 +66,10 @@ using Microsoft::WRL::ComPtr;
 #endif
 
 enum : UINT { WM_TRAY = WM_APP + 1, WM_SHOWMENU, WM_MFERROR, WM_SETSTATE, WM_CONVPROG, WM_CONVDONE, WM_CHOOSE, WM_BLURFAIL };   // WM_SETSTATE: 0 off, 1 on, 2 toggle, 3 exit, 4 filter toggle, 5 filter window, 6 desktop icons toggle, 7 blur toggle
-enum : UINT { ID_TOGGLE = 1, ID_CHOOSE, ID_EXIT, ID_UNINSTALL, ID_CANCEL, ID_FILTER, ID_FILTERS, ID_ICONS, ID_APP, ID_BLUR, ID_FIT0 = 20 };
+enum : UINT { ID_TOGGLE = 1, ID_CHOOSE, ID_EXIT, ID_UNINSTALL, ID_CANCEL, ID_FILTER, ID_FILTERS, ID_ICONS, ID_BLUR, ID_FIT0 = 20 };
 enum : int { HK_FILTER = 1, HK_ICONS, HK_BLUR };
 static const wchar_t* g_iconsKeyName = nullptr;   // shortcut that toggles desktop icons, if one could be registered
-enum : UINT_PTR { T_WATCH = 1, T_PIN, T_WIDGETS };
-static const UINT IPC_COMMAND = 0xBD01, IPC_STATE = 0xBD02;   // WM_COPYDATA from / to backdrop-ui.exe
+enum : UINT_PTR { T_WATCH = 1, T_PIN };
 static const DWORD CONVERTER_VERSION = 1;   // bump to invalidate every cached conversion
 
 static HINSTANCE g_inst;
@@ -397,15 +396,17 @@ static bool Attach() {
     int w = r.right - r.left, h = r.bottom - r.top;
     if (raised) {   // the raised desktop only composes layered children
         g_host = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, L"BackdropHost", L"", WS_POPUP, 0, 0, w, h, nullptr, nullptr, g_inst, nullptr);
-        SetLayeredWindowAttributes(g_host, 0, 255, LWA_ALPHA);
+        if (!g_host || !SetLayeredWindowAttributes(g_host, 0, 255, LWA_ALPHA)) { Detach(); return false; }
         SetParent(g_host, parent);
         SetWindowLongPtrW(g_host, GWL_STYLE, WS_CHILD | WS_CLIPCHILDREN);
+        if (GetParent(g_host) != parent) { Detach(); return false; }
         SetWindowPos(g_host, nullptr, r.left, r.top, w, h, SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     } else {
         g_host = CreateWindowExW(WS_EX_NOACTIVATE, L"BackdropHost", L"", WS_CHILD | WS_CLIPCHILDREN, r.left, r.top, w, h, parent, nullptr, g_inst, nullptr);
     }
     if (!g_host) return false;
     g_video = CreateWindowExW(0, L"BackdropHost", L"", WS_CHILD | WS_VISIBLE, 0, 0, w, h, g_host, nullptr, g_inst, nullptr);
+    if (!g_video) { Detach(); return false; }
 
     ComPtr<IDXGIDevice> dd;
     ComPtr<IDXGIAdapter> ad;
@@ -435,7 +436,9 @@ static bool Attach() {
     if (raised) {
         WorkersToBottom(pm, 0, 0, 0);
         // spawn the wallpaper WorkerW (child of Progman) without waiting on Explorer, which is busy right after login
-        if (!FindWindowExW(pm, nullptr, L"WorkerW", nullptr)) SendMessageCallbackW(pm, 0x052C, 0xD, 1, WorkersToBottom, 0);
+        // Also required when WorkerW already exists: on 26100/26200/26300
+        // DefView can otherwise stay opaque and hide a perfectly playing video.
+        SendMessageCallbackW(pm, 0x052C, 0xD, 1, WorkersToBottom, 0);
     }
     g_parent = parent;
     g_redraw = true;
@@ -445,6 +448,28 @@ static bool Attach() {
 
 static bool Attached() {
     return g_host && IsWindow(g_host) && g_parent && IsWindow(g_parent) && GetParent(g_host) == g_parent && Progman();
+}
+
+// Explorer may recreate/reorder its wallpaper child without changing Progman.
+// Only touch z-order when it is wrong; repeated SetWindowPos causes DWM churn.
+static void RepairDesktopOrder() {
+    HWND pm = Progman();
+    if (!pm || g_parent != pm || !RaisedDesktop(pm)) return;
+    HWND icons = FindWindowExW(pm, nullptr, L"SHELLDLL_DefView", nullptr);
+    if (!icons) return;
+    bool belowHost = false;
+    for (HWND child = GetWindow(pm, GW_CHILD); child; child = GetWindow(child, GW_HWNDNEXT)) {
+        if (child == g_host) { belowHost = true; continue; }
+        wchar_t cls[32]{};
+        GetClassNameW(child, cls, 32);
+        if (!belowHost && !wcscmp(cls, L"WorkerW")) {
+            SetWindowPos(g_host, icons, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            WorkersToBottom(pm, 0, 0, 0);
+            g_redraw = true;
+            SetEvent(g_wake);
+            break;
+        }
+    }
 }
 
 // pause while a maximized / fullscreen window covers the desktop
@@ -472,9 +497,10 @@ static bool DesktopCovered() {
 static void Watch() {
     if (!g_enabled || !g_engine) return;
     if (!Attached()) {
-        if (!Attach()) { SetTimer(g_main, T_WATCH, 10, nullptr); return; }   // desktop not ready (login): poll fast
+        if (!Attach()) { SetTimer(g_main, T_WATCH, 250, nullptr); return; }
         SetTimer(g_main, T_WATCH, 1000, nullptr);
     }
+    RepairDesktopOrder();
     SetPlaying(!g_locked && !g_displayOff && !DesktopCovered());
 }
 
@@ -635,7 +661,13 @@ static void StartJob(const wchar_t* src, Fit fit, bool silent, const Probe* prob
     g_job = j;
     if (!silent) ShowProgress(j);
     UpdateTip();
-    CloseHandle(CreateThread(nullptr, 0, JobThread, j, 0, nullptr));
+    HANDLE thread = CreateThread(nullptr, 0, JobThread, j, 0, nullptr);
+    if (thread) CloseHandle(thread);
+    else {
+        j->hr = HRESULT_FROM_WIN32(GetLastError());
+        wcscpy_s(j->err, L"Windows couldn't start the conversion. Try again after closing other apps.");
+        PostMessageW(g_main, WM_CONVDONE, 0, (LPARAM)j);
+    }
 }
 
 static void JobDone(Job* j) {
@@ -805,23 +837,7 @@ static void DeleteTreeFiles(const wchar_t* dir) {
     RemoveDirectoryW(dir);
 }
 
-// ---- the optional UI process (backdrop-ui.exe: the Backdrop app window + desktop widgets). Never loaded in here.
-static bool StartUI(const wchar_t* args, DWORD priority) {
-    wchar_t exe[MAX_PATH];
-    ExePath(exe);
-    if (wchar_t* s = wcsrchr(exe, L'\\')) wcscpy_s(s + 1, MAX_PATH - (s + 1 - exe), L"backdrop-ui.exe");
-    if (!Exists(exe)) return false;
-    wchar_t cmd[MAX_PATH + 32];
-    swprintf_s(cmd, L"\"%s\" %s", exe, args);
-    STARTUPINFOW si{sizeof(si)};
-    PROCESS_INFORMATION pi{};
-    if (!CreateProcessW(exe, cmd, nullptr, nullptr, FALSE, priority, nullptr, nullptr, &si, &pi)) return false;
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return true;
-}
-
-static void CloseUI() {   // install / uninstall: the UI process holds sciter.dll open
+static void CloseUI() {   // stop the legacy 1.3/1.4 UI during upgrade/uninstall
     HWND o = FindWindowW(L"BackdropUI", nullptr);
     if (!o) return;
     DWORD pid = 0;
@@ -941,8 +957,6 @@ static void ShowMenu() {
         AppendMenuW(m, MF_STRING, ID_CANCEL, L"Cancel preparing");
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     }
-    AppendMenuW(m, MF_STRING, ID_APP, L"Open Backdrop…");
-    AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     wchar_t ft[120];
     swprintf_s(ft, L"Colour filter: %s %d%%%s%s", FilterName(g_fs.type), g_fs.intensity, g_hotkeyOk ? L"\t" : L"", g_hotkeyOk ? g_hotkeyName : L"");
     AppendMenuW(m, MF_STRING | (g_filterOn ? MF_CHECKED : 0), ID_FILTER, ft);
@@ -974,7 +988,6 @@ static void ShowMenu() {
     else if (cmd >= ID_FIT0 && cmd <= ID_FIT0 + 3) SetFit(Fit(cmd - ID_FIT0));
     else if (cmd == ID_CANCEL) { CancelJob(); UpdateTip(); }
     else if (cmd == ID_UNINSTALL) UninstallFromMenu();
-    else if (cmd == ID_APP) StartUI(L"/app", NORMAL_PRIORITY_CLASS);
     else if (cmd == ID_EXIT) DestroyWindow(g_main);
 }
 
@@ -1010,99 +1023,13 @@ static LRESULT CALLBACK ProgressProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     return DefWindowProcW(h, m, w, l);
 }
 
-// ---- commands from the Backdrop app (backdrop-ui.exe), "key=value" over WM_COPYDATA. "state?" is answered with a
-// WM_COPYDATA (IPC_STATE) JSON reply to the sender's window, sent before this returns.
-static std::wstring JsonEsc(const wchar_t* s) {
-    std::wstring o;
-    for (; *s; s++) {
-        if (*s == L'"' || *s == L'\\') { o += L'\\'; o += *s; }
-        else if (*s < 32) o += L' ';
-        else o += *s;
-    }
-    return o;
-}
-
-static std::wstring StateJson() {
-    wchar_t b[256];
-    std::wstring j = L"{\"running\":true";
-    swprintf_s(b, L",\"wallpaper\":{\"on\":%s,\"fit\":%d,\"preparing\":%d,\"file\":\"", g_enabled ? L"true" : L"false", g_fit.load(), g_job ? g_job->pct : -1);
-    j += b;
-    j += JsonEsc(g_src);
-    swprintf_s(b, L"\"},\"filter\":{\"on\":%s,\"type\":%d,\"intensity\":%d,\"atLogin\":%s,\"schedule\":%s,\"from\":%d,\"to\":%d,\"hotkey\":\"%s\",\"names\":[",
-               g_filterOn ? L"true" : L"false", g_fs.type, g_fs.intensity, g_fs.atLogin ? L"true" : L"false", g_fs.schedule ? L"true" : L"false",
-               g_fs.from, g_fs.to, g_hotkeyOk ? g_hotkeyName : L"");
-    j += b;
-    for (int i = 0; i < FILTER_COUNT; i++) { j += i ? L",\"" : L"\""; j += JsonEsc(FilterName(i)); j += L"\""; }
-    swprintf_s(b, L"]},\"blur\":{\"on\":%s,\"strength\":%d,\"hotkey\":\"%s\"}", g_blurOn ? L"true" : L"false", g_blurStrength, g_blurKeyOk ? g_blurKeyName : L"");
-    j += b;
-    swprintf_s(b, L",\"icons\":{\"shown\":%s,\"hotkey\":\"%s\"}}", DesktopIconsShown() ? L"true" : L"false", g_iconsKeyName ? g_iconsKeyName : L"");
-    j += b;
-    return j;
-}
-
-static bool Command(HWND from, const std::wstring& c) {
-    size_t eq = c.find(L'=');
-    std::wstring k = c.substr(0, eq), v = eq == std::wstring::npos ? L"" : c.substr(eq + 1);
-    int n = _wtoi(v.c_str());
-    bool on = v == L"on" || v == L"1" || v == L"true";
-    if (k == L"state?") {
-        std::wstring j = StateJson();
-        COPYDATASTRUCT cds{IPC_STATE, DWORD((j.size() + 1) * sizeof(wchar_t)), (void*)j.c_str()};
-        DWORD_PTR r;
-        return IsWindow(from) && SendMessageTimeoutW(from, WM_COPYDATA, (WPARAM)g_main, (LPARAM)&cds, SMTO_ABORTIFHUNG, 2000, &r);
-    }
-    if (k == L"wallpaper") { g_enabled = v == L"toggle" ? !g_enabled : on; SaveSettings(); ApplyState(); }
-    else if (k == L"fit" && n >= 0 && n <= FIT_CENTER) SetFit(Fit(n));
-    else if (k == L"choose") PostMessageW(g_main, WM_CHOOSE, 1, 0);   // modal dialog: don't block the sender
-    else if (k == L"filter") FilterSetOn(v == L"toggle" ? !g_filterOn : on, 300);
-    else if (k == L"filter.type" && n >= 0 && n < FILTER_COUNT) { g_fs.type = n; FilterSave(); FilterSetOn(true, 300); }
-    else if (k == L"filter.intensity") { g_fs.intensity = std::clamp(n, 0, 100); FilterSave(); if (g_filterOn) FilterUpdate(0); else FilterSetOn(true, 0); }
-    else if (k == L"filter.atlogin") { g_fs.atLogin = on; FilterSave(); }
-    else if (k == L"filter.schedule") { g_fs.schedule = on; FilterSave(); ScheduleFollow(400); }
-    else if ((k == L"filter.from" || k == L"filter.to") && n >= 0 && n < 1440) {
-        (k == L"filter.from" ? g_fs.from : g_fs.to) = n;
-        FilterSave();
-        if (g_fs.schedule) ScheduleFollow(400);
-    }
-    else if (k == L"filter.panel") PanelShow(g_inst);
-    else if (k == L"blur") BlurSetOn(v == L"toggle" ? !g_blurOn : on);
-    else if (k == L"blur.strength") BlurSetStrength(n);
-    else if (k == L"icons") { if (v == L"toggle" || on != DesktopIconsShown()) ToggleDesktopIcons(); }
-    else return false;
-    if (g_filterChanged) g_filterChanged();
-    return true;
-}
-
 static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     switch (m) {
     case WM_TRAY:
         if (LOWORD(l) == WM_LBUTTONUP || LOWORD(l) == WM_RBUTTONUP) ShowMenu();
         return 0;
     case WM_SHOWMENU: ShowMenu(); return 0;
-    case WM_CHOOSE:
-        Choose();
-        if (w == 1) {   // asked by the Backdrop app: give it the focus back (our own main window would keep it otherwise)
-            DWORD uiPid = 0;
-            if (HWND ui = FindWindowW(L"BackdropUI", nullptr)) GetWindowThreadProcessId(ui, &uiPid);
-            struct Find { DWORD pid; HWND found; } f{uiPid, nullptr};
-            if (uiPid) EnumWindows([](HWND h, LPARAM p) -> BOOL {
-                auto* f = (Find*)p;
-                DWORD pid = 0;
-                GetWindowThreadProcessId(h, &pid);
-                wchar_t t[16];
-                if (pid == f->pid && IsWindowVisible(h) && GetWindowTextW(h, t, 16) && !wcscmp(t, L"Backdrop")) { f->found = h; return FALSE; }
-                return TRUE;
-            }, (LPARAM)&f);
-            if (f.found) SetForegroundWindow(f.found);
-        }
-        return 0;
-    case WM_COPYDATA: {
-        auto* cds = (const COPYDATASTRUCT*)l;
-        if (!cds || cds->dwData != IPC_COMMAND || !cds->lpData || cds->cbData < sizeof(wchar_t) || cds->cbData > 4096) return FALSE;
-        std::wstring c((const wchar_t*)cds->lpData, cds->cbData / sizeof(wchar_t));
-        while (!c.empty() && !c.back()) c.pop_back();
-        return Command((HWND)w, c);
-    }
+    case WM_CHOOSE: Choose(); return 0;
     case WM_SETSTATE:
         if (w == 3) { DestroyWindow(h); return 0; }
         if (w == 4) { FilterSetOn(!g_filterOn, 300); return 0; }
@@ -1114,14 +1041,6 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         ApplyState();
         return 0;
     case WM_TIMER:
-        if (w == T_WIDGETS) {   // widgets at sign-in: only once the wallpaper is up (or after 15 s), at low priority
-            static int tries = 0;
-            if (!g_enabled || !PlayPath() || Attached() || ++tries > 300) {
-                KillTimer(h, T_WIDGETS);
-                StartUI(L"", BELOW_NORMAL_PRIORITY_CLASS);
-            }
-            return 0;
-        }
         if (w == T_PIN) {
             if (TryPin() || ++g_pinTries > 40) { KillTimer(h, T_PIN); g_pinned = 1; SaveSettings(); }
             return 0;
@@ -1296,14 +1215,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int) {
     if (arg == 5) PanelShow(inst);
     if (arg == 6) ToggleDesktopIcons();
     if (arg == 7) BlurSetOn(true);
-    {   // desktop widgets (a separate process) only if the user turned on "Open widgets at sign-in"; checked after the
-        // wallpaper and filter are already up, and started later still (see T_WIDGETS)
-        DWORD on = 0, atLogin = 0, sz = sizeof(DWORD);
-        RegGetValueW(HKEY_CURRENT_USER, KEY, L"WidgetsEnabled", RRF_RT_REG_DWORD, nullptr, &on, &sz);
-        sz = sizeof(DWORD);
-        RegGetValueW(HKEY_CURRENT_USER, KEY, L"WidgetsAtLogin", RRF_RT_REG_DWORD, nullptr, &atLogin, &sz);
-        if (on && atLogin && !FindWindowW(L"BackdropUI", nullptr)) SetTimer(g_main, T_WIDGETS, 50, nullptr);
-    }
     if (!g_src[0] && !g_asked) { g_asked = 1; SaveSettings(); Choose(); }   // first run only, not at every login
 
     MSG msg;
